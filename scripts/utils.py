@@ -62,7 +62,8 @@ def generate_model_name(params, start_datetime, wandb_run_id = None, wandb_run_n
         name_components.append(formatted_datetime)
 
         name_components.append(params.front_end)
-        name_components.append(params.pooling_method)
+        name_components.append(params.seq_to_seq_method)
+        name_components.append(params.seq_to_one_method)
         if wandb_run_id: name_components.append(wandb_run_id)
         if wandb_run_name: name_components.append(wandb_run_name)
 

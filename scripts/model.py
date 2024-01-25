@@ -1,6 +1,7 @@
 from torch import nn
-from front_end import VGG
-from poolings import StatisticalPooling
+from front_end import VGG, Resnet34, Resnet101
+from poolings import SelfAttention, MultiHeadAttention, TransformerStacked
+from poolings import StatisticalPooling, AttentionPooling
 
 if False:
     import torch
@@ -18,10 +19,9 @@ class Classifier(nn.Module):
      
         self.device = device
         self.init_front_end(parameters)   
-        self.init_pooling_layers(parameters, device)
-        self.init_adapter(parameters)
-        
-        #print(f"self.front_end_output_vectors_dimension: {self.front_end_output_vectors_dimension}")
+        self.init_adapter_layer(parameters)
+        self.init_pooling_component(parameters, device)
+        self.init_classifier_layer(parameters)
 
         if False:
             
@@ -44,55 +44,90 @@ class Classifier(nn.Module):
                 
             # Calculate the size of the hidden state vectors (output of the front-end)
             self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
-                parameters.front_end_input_vectors_dim, 
+                parameters.front_end_input_vectors_dimension, 
                 )
+
+        elif parameters.front_end == 'Resnet34':
+
+            # Set the front-end component that will take the spectrogram and generate complex features
+            self.front_end = Resnet34(
+                256, # HACK set as parameter?
+                )
+                
+            # Calculate the size of the hidden state vectors (output of the front-end)
+            self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
+                parameters.front_end_input_vectors_dimension, 
+                256, # HACK set as parameter?
+                )
+        
+        elif parameters.front_end == 'Resnet101':
+
+            # Set the front-end component that will take the spectrogram and generate complex features
+            self.front_end = Resnet101(256)
+                
+            # Calculate the size of the hidden state vectors (output of the front-end)
+            self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
+                parameters.front_end_input_vectors_dimension, 
+                256,
+                )
+
+            
  
 
-    def init_pooling_layers(self, parameters, device):    
+    def init_adapter_layer(self, parameters):
 
-        # Set the pooling component that will take the front-end features and summarize them in a context vector
+        self.adapter_layer = nn.Linear(self.front_end_output_vectors_dimension, parameters.pooling_input_output_dimension)
 
-        self.pooling_method = parameters.pooling_method
+    
+    def init_seq_to_seq_layer(self, parameters):
+        
+            self.seq_to_seq_method = parameters.seq_to_seq_method
 
-        # HACK until a real pooling is developed
-        self.pooling_layer = StatisticalPooling(
-            emb_in = self.front_end_output_vectors_dimension,
-        )
+            if self.seq_to_seq_method == 'SelfAttention':
+                self.seq_to_seq_layer = SelfAttention()
 
-        if False:
-            # New Pooling classes
-            if self.pooling_method == 'SelfAttentionAttentionPooling':
-                self.poolingLayer = SelfAttentionAttentionPooling(
-                    emb_in = self.hidden_states_dimension,
-                    emb_out = parameters.pooling_output_size,
-                    positional_encoding = parameters.pooling_positional_encoding,
-                    device = device,
-                    )
-            elif self.pooling_method == 'MultiHeadAttentionAttentionPooling':
-                self.poolingLayer = MultiHeadAttentionAttentionPooling(
-                    emb_in = self.hidden_states_dimension,
-                    emb_out = parameters.pooling_output_size,
-                    heads = parameters.pooling_heads_number,
-                    positional_encoding = parameters.pooling_positional_encoding,
-                    device = device,
-                    )
-            elif self.pooling_method == 'TransformerStackedAttentionPooling':
-                self.poolingLayer = TransformerStackedAttentionPooling(
-                    emb_in = self.hidden_states_dimension,
-                    emb_out = parameters.pooling_output_size,
-                    n_blocks = parameters.transformer_n_blocks, 
-                    expansion_coef = parameters.transformer_expansion_coef, 
-                    attention_type = parameters.transformer_attention_type, 
-                    drop_out_p = parameters.transformer_drop_out, 
-                    heads = parameters.pooling_heads_number,
-                    positional_encoding = parameters.pooling_positional_encoding,
-                    device = device,
-                    )
+            elif self.seq_to_seq_method == 'MultiHeadAttention':
+                self.seq_to_seq_layer = MultiHeadAttention(
+                    emb_in = parameters.pooling_input_output_dimension,
+                    heads = parameters.seq_to_seq_heads_number,
+                )
+
+            elif self.seq_to_seq_method == 'TransformerStacked':
+                self.seq_to_seq_layer = TransformerStacked(
+                    emb_in = parameters.pooling_input_output_dimension,
+                    n_blocks = parameters.transformer_n_blocks,
+                    expansion_coef = parameters.transformer_expansion_coef,
+                    drop_out_p = parameters.transformer_drop_out,
+                    heads = parameters.seq_to_seq_heads_number,
+                )
     
 
-    def init_adapter(self, parameters):
+    def init_seq_to_one_layer(self, parameters):
 
-        self.adapter_layer = nn.Linear(parameters.pooling_output_size, parameters.number_classes)
+            self.seq_to_one_method = parameters.seq_to_one_method
+
+            if self.seq_to_one_method == 'StatisticalPooling':
+                self.seq_to_one_layer = StatisticalPooling(
+                    emb_in = parameters.pooling_input_output_dimension,
+                )
+
+            elif self.seq_to_one_method == 'AttentionPooling':
+                self.seq_to_one_layer = AttentionPooling(
+                    emb_in = parameters.pooling_input_output_dimension,
+                )
+    
+    def init_pooling_component(self, parameters, device):    
+
+        # Set the pooling component that will take the front-end features and summarize them in a context vector
+        # This component applies first a sequence to sequence layer and then a sequence to one layer.
+
+        self.init_seq_to_seq_layer(parameters)
+        self.init_seq_to_one_layer(parameters)
+    
+
+    def init_classifier_layer(self, parameters):
+
+        self.classifier_layer = nn.Linear(parameters.pooling_input_output_dimension, parameters.number_classes)
 
     
     def forward(self, input_tensor, label = None):
@@ -105,14 +140,20 @@ class Classifier(nn.Module):
         encoder_output = self.front_end(input_tensor)
         #print(f"encoder_output.size(): {encoder_output.size()}")
 
-        pooling_output = self.pooling_layer(encoder_output)
-        #print(f"pooling_output.size(): {pooling_output.size()}")
-
-        # adapter_output are logits, softmax will be applied within the loss
-        adapter_output = self.adapter_layer(pooling_output)
+        adapter_output = self.adapter_layer(encoder_output)
         #print(f"adapter_output.size(): {adapter_output.size()}")
+
+        seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
+        #print(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
+
+        seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+        #print(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
+
+        # classifier_output are logits, softmax will be applied within the loss
+        classifier_output = self.classifier_layer(seq_to_one_output)
+        #print(f"classifier_output.size(): {classifier_output.size()}")
     
-        return adapter_output
+        return classifier_output
     
     
     

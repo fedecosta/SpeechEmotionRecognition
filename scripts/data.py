@@ -10,7 +10,9 @@ class TrainDataset(data.Dataset):
     def __init__(self, utterances_paths, input_parameters, random_crop_secs, sample_rate = 16000):
         
         self.utterances_paths = utterances_paths
-        self.parameters = copy.deepcopy(input_parameters) # I suspect when instantiating two datasets the parameters are overrided
+        # I suspect when instantiating two datasets the parameters are overrided
+        # TODO maybe avoid defining self.parameters to reduce memory usage
+        self.parameters = copy.deepcopy(input_parameters) 
         self.sample_rate = sample_rate
         self.random_crop_secs = random_crop_secs
         self.random_crop_samples = int(self.random_crop_secs * self.sample_rate)
@@ -24,7 +26,7 @@ class TrainDataset(data.Dataset):
             n_fft = 512,
             win_length = int(self.sample_rate * 0.025),
             hop_length = int(self.sample_rate * 0.01),
-            n_mels = self.parameters.front_end_input_vectors_dim,
+            n_mels = self.parameters.front_end_input_vectors_dimension,
             mel_scale = "slaney",
             window_fn = torch.hamming_window,
             f_max = self.sample_rate // 2,

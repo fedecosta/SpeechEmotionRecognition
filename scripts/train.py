@@ -296,14 +296,14 @@ class Trainer:
             # TODO Use nn.parallel.DistributedDataParallel instead of multiprocessing or nn.DataParallel!!!!
             self.net = nn.DataParallel(self.net) 
         
-        summary(self.net, (350, self.params.front_end_input_vectors_dim))
+        summary(self.net, (150, self.params.front_end_input_vectors_dimension))
 
         # Calculate trainable parameters (to estimate model complexity)
         self.total_trainable_params = sum(
             p.numel() for p in self.net.parameters() if p.requires_grad
         )
 
-        logger.info("Network loaded.")
+        logger.info(f"Network loaded, total_trainable_params: {self.total_trainable_params}")
 
 
     def load_loss_function(self):
@@ -448,6 +448,7 @@ class Trainer:
 
                 # Assign input and label to device
                 input, label = input.float().to(self.device), label.long().to(self.device)
+                if batch_number == 0: logger.info(f"input.size(): {input.size()}")
 
                 # Calculate prediction and loss
                 prediction  = self.net(input_tensor = input, label = label)
@@ -464,7 +465,8 @@ class Trainer:
             
             self.training_eval_metric = metric_score
 
-            # TODO maybe we should need to clean memory
+            del final_predictions
+            del final_labels
 
         # Return to torch training mode
         self.net.train()
@@ -474,6 +476,8 @@ class Trainer:
 
 
     def evaluate_validation(self):
+
+        # TODO validation with batch size 1 gets out of memory error!!!
 
         logger.info(f"Evaluating validation task...")
 
@@ -487,6 +491,7 @@ class Trainer:
 
                 # Assign input and label to device
                 input, label = input.float().to(self.device), label.long().to(self.device)
+                if batch_number == 0: logger.info(f"input.size(): {input.size()}")
 
                 # Calculate prediction and loss
                 prediction  = self.net(input_tensor = input, label = label)
@@ -494,7 +499,6 @@ class Trainer:
                 final_predictions = torch.cat(tensors = (final_predictions, prediction))
                 final_labels = torch.cat(tensors = (final_labels, label))
 
-            # TODO complete this
             metric_score = multiclass_f1_score(
                 input = final_predictions, 
                 target  = final_labels, 
@@ -504,7 +508,8 @@ class Trainer:
             
             self.validation_eval_metric = metric_score
 
-            # TODO maybe we should need to clean memory
+            del final_predictions
+            del final_labels
 
         # Return to training mode
         self.net.train()
@@ -694,6 +699,7 @@ class Trainer:
 
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
+            if self.batch_number == 0: logger.info(f"input.size(): {input.size()}")
 
             # Calculate prediction and loss
             prediction  = self.net(input_tensor = input, label = label)
@@ -895,10 +901,10 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
             help = 'Name of folder that will contain the log file.',
             )
-#         # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
-#         # Training Parameters
-#         # ---------------------------------------------------------------------
+        # Training Parameters
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             '--max_epochs',
             type = int,
@@ -973,40 +979,28 @@ class ArgsParser:
             help = 'Name of the model checkpoint file. Mandatory if load_checkpoint is True.',
             )
         
-#         # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
-#         # Evaluation Parameters
-#         # ---------------------------------------------------------------------
-#         self.parser.add_argument(
-#             '--evaluation_type', 
-#             type = str, 
-#             choices = ['random_crop', 'total_length'],
-#             default = TRAIN_DEFAULT_SETTINGS['evaluation_type'], 
-#             help = 'With random_crop the utterances are croped at random with random_crop_secs secs before doing the forward pass.\
-#                 In this case, samples are batched with batch_size.\
-#                 With total_length, full length audios are passed through the forward.\
-#                 In this case, samples are automatically batched with batch_size = 1, since they have different lengths.',
-#             )
+        # Evaluation Parameters
+        # ---------------------------------------------------------------------
+        # TODO see this
+        if False:
+            self.parser.add_argument(
+                '--evaluation_type', 
+                type = str, 
+                choices = ['random_crop', 'total_length'],
+                default = TRAIN_DEFAULT_SETTINGS['evaluation_type'], 
+                help = 'With random_crop the utterances are croped at random with random_crop_secs secs before doing the forward pass.\
+                    In this case, samples are batched with batch_size.\
+                    With total_length, full length audios are passed through the forward.\
+                    In this case, samples are automatically batched with batch_size = 1, since they have different lengths.',
+                )
 
-#         self.parser.add_argument(
-#             '--evaluation_batch_size', 
-#             type = int, 
-#             default = TRAIN_DEFAULT_SETTINGS['evaluation_batch_size'],
-#             help = "Size of evaluation batches. Automatically set to 1 if evaluation_type is total_length.",
-#             )
-#         # ---------------------------------------------------------------------
 
-#         # Data Parameters
-#         # ---------------------------------------------------------------------
-        
-        
-        
-        self.parser.add_argument(
-            '--front_end_input_vectors_dim', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['front_end_input_vectors_dim'], 
-            help = 'Dimension of each vector that will be input of the front-end (usually number of mels in mel-spectrogram).'
-            )
+        # ---------------------------------------------------------------------
+
+        # Data Parameters
+        # ---------------------------------------------------------------------
 
         self.parser.add_argument(
             '--training_random_crop_secs', 
@@ -1039,10 +1033,10 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['num_workers'],
             help = 'num_workers to be used by the data loader.'
             )
-#         # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         
-#         # Network Parameters
-#         # ---------------------------------------------------------------------
+        # Network Parameters
+        # ---------------------------------------------------------------------
         
         self.parser.add_argument(
             '--number_classes', 
@@ -1051,18 +1045,25 @@ class ArgsParser:
             help = "Number of classes to classify.",
             )
 
-#         self.parser.add_argument(
-#             '--embedding_size', 
-#             type = int, 
-#             default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
-#             help = 'Size of the embedding that the system will generate.',
-#             )
+        self.parser.add_argument(
+            '--front_end_input_vectors_dimension', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['front_end_input_vectors_dimension'], 
+            help = 'Dimension of each vector that will be input to the front-end (usually number of mels in mel-spectrogram).'
+            )
+        
+        self.parser.add_argument(
+            '--pooling_input_output_dimension', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['pooling_input_output_dimension'], 
+            help = 'Each input and output vector of the pooling component will have 1 x pooling_input_output_size dimension.',
+            )
 
         self.parser.add_argument(
             '--front_end', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['front_end'],
-            choices = ['VGG',], 
+            choices = ['VGG', 'Resnet34', 'Resnet101'], 
             help = 'Type of Front-end used. \
                 VGG for a N-block VGG architecture.'
             )
@@ -1084,35 +1085,28 @@ class ArgsParser:
                 The number of channels must be passed in order and consisently with vgg_n_blocks.',
             )
 
-#         self.parser.add_argument(
-#             '--patchs_generator_patch_width', 
-#             type = int,
-#             help = 'Width of each patch token to use with at the PatchsGenerator front-end. \
-#                 (Only used when front_end = PatchsGenerator.',
-#             )
-
         self.parser.add_argument(
-            '--pooling_method', 
+            '--seq_to_seq_method', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
-            choices = ['StatisticalPooling',], 
-            help = 'Type of pooling method.',
+            default = TRAIN_DEFAULT_SETTINGS['seq_to_seq_method'], 
+            choices = ['SelfAttention', 'MultiHeadAttention', 'TransformerStacked'], 
+            help = 'Sequence to sequence component after the linear projection layer of the model.',
+            )
+        
+        self.parser.add_argument(
+            '--seq_to_one_method', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['seq_to_one_method'], 
+            choices = ['StatisticalPooling', 'AttentionPooling'], 
+            help = 'Type of pooling method applied to the output sequence to sequence component of the model.',
             )
 
         self.parser.add_argument(
-            '--pooling_output_size', 
+            '--seq_to_seq_heads_number', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['pooling_output_size'], 
-            help = 'Each output vector of the pooling component will have 1 x pooling_output_size dimension.',
+            help = 'Number of heads for the seq_to_seq layer of the pooling component \
+                (only for MHA based seq_to_seq options).',
             )
-
-#         self.parser.add_argument(
-#             '--pooling_heads_number', 
-#             type = int, 
-#             #default = TRAIN_DEFAULT_SETTINGS['pooling_heads_number'],
-#             help = 'Number of heads for the attention layer of the pooling component \
-#                 (only for MHA based pooling_method options).',
-#             )
 
 #         self.parser.add_argument(
 #             '--pooling_mask_prob', 
@@ -1128,38 +1122,26 @@ class ArgsParser:
 #             help = 'Wether to use positional encoding in the attention layer of the pooling component.'
 #             )
 
-#         self.parser.add_argument(
-#             '--transformer_n_blocks', 
-#             type = int, 
-#             #default = TRAIN_DEFAULT_SETTINGS['transformer_n_blocks'],
-#             help = 'Number of transformer blocks to stack in the attention component of the pooling_method. \
-#                 (Only for pooling_method = TransformerStackedAttentionPooling).',
-#             )
+        self.parser.add_argument(
+            '--transformer_n_blocks', 
+            type = int, 
+            help = 'Number of transformer blocks to stack in the seq_to_seq component of the pooling. \
+                (Only for seq_to_seq_method = TransformerStacked).',
+            )
 
-#         self.parser.add_argument(
-#             '--transformer_expansion_coef', 
-#             type = int, 
-#             #default = TRAIN_DEFAULT_SETTINGS['transformer_expansion_coef'], 
-#             help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
-#                 (Only for pooling_method = TransformerStackedAttentionPooling)."
-#             )
-
-#         self.parser.add_argument(
-#             '--transformer_attention_type', 
-#             type = str, 
-#             #default = TRAIN_DEFAULT_SETTINGS['transformer_attention_type'], 
-#             choices = ['SelfAttention', 'MultiHeadAttention'],
-#             help = 'Type of Attention to use in the attention component of the transformer block.\
-#                 (Only for pooling_method = TransformerStackedAttentionPooling).'
-#             )
+        self.parser.add_argument(
+            '--transformer_expansion_coef', 
+            type = int, 
+            help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
+                (Only for seq_to_seq_method = TransformerBlock)."
+            )
         
-#         self.parser.add_argument(
-#             '--transformer_drop_out', 
-#             type = float, 
-#             #default = TRAIN_DEFAULT_SETTINGS['transformer_drop_out'], 
-#             help = 'Dropout probability to use in the feed forward component of the transformer block.\
-#                 (Only for pooling_method = TransformerStackedAttentionPooling).'
-#             )
+        self.parser.add_argument(
+            '--transformer_drop_out', 
+            type = float, 
+            help = 'Dropout probability to use in the feed forward component of the transformer block.\
+                (Only for seq_to_seq_method = TransformerBlock).'
+            )
 
 #         self.parser.add_argument(
 #             '--bottleneck_drop_out', 
