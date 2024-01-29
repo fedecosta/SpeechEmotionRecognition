@@ -203,6 +203,8 @@ class Trainer:
             utterances_paths = self.train_labels_lines, 
             input_parameters = self.params,
             random_crop_secs = self.params.training_random_crop_secs,
+            augmentation_prob = self.params.training_augmentation_prob,
+            sample_rate = self.params.sample_rate,
             )
         
         # Load DataLoader params
@@ -238,6 +240,8 @@ class Trainer:
             utterances_paths = self.validation_labels_lines, 
             input_parameters = self.params,
             random_crop_secs = self.params.evaluation_random_crop_secs,
+            augmentation_prob = self.params.evaluation_augmentation_prob,
+            sample_rate = self.params.sample_rate,
         )
 
         # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
@@ -1018,6 +1022,13 @@ class ArgsParser:
                 If 0, the full audio is loaded.'
             )
 
+        self.parser.add_argument(
+            '--sample_rate', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['sample_rate'],
+            help = "Sample rate that you want to use (every audio loaded is resampled to this frequency)."
+            )
+
 #         self.parser.add_argument(
 #             '--normalization', 
 #             type = str, 
@@ -1166,7 +1177,7 @@ class ArgsParser:
 #             default = TRAIN_DEFAULT_SETTINGS['margin_factor'],
 #             help = 'Margin factor of the AM-Softmax (referred as m in the AM-Softmax definition).'
 #             )
-#         # ---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
         # Optimization arguments
         # ---------------------------------------------------------------------
@@ -1187,6 +1198,54 @@ class ArgsParser:
             '--weight_decay', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['weight_decay'],
+            )
+        # ---------------------------------------------------------------------
+
+        # Data Augmentation arguments
+        # ---------------------------------------------------------------------
+
+        self.parser.add_argument(
+            '--training_augmentation_prob', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['training_augmentation_prob'],
+            help = 'Probability of applying data augmentation to each file. Set to 0 if not augmentation is desired.'
+            )
+
+        self.parser.add_argument(
+            '--evaluation_augmentation_prob', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['evaluation_augmentation_prob'],
+            help = 'Probability of applying data augmentation to each file. Set to 0 if not augmentation is desired.'
+            )
+
+        self.parser.add_argument(
+            '--augmentation_noises_labels_path', 
+            type = str, 
+            help = '.' # TODO complete
+            )
+        
+        self.parser.add_argument(
+            '--augmentation_noises_directory', 
+            type = str,
+            help = 'Optional additional directory to prepend to the augmentation_labels_path paths.',
+            )
+
+        self.parser.add_argument(
+            '--augmentation_rirs_labels_path', 
+            type = str, 
+            help = '.' # TODO complete
+            )
+        
+        self.parser.add_argument(
+            '--augmentation_rirs_directory', 
+            type = str, 
+            help = 'Optional additional directory to prepend to the rirs_labels_path paths.',
+            )
+
+        self.parser.add_argument(
+            '--augmentation_window_size_secs', 
+            type = float, 
+            help = '.' # TODO complete
             )
         # ---------------------------------------------------------------------
 

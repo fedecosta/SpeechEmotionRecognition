@@ -4,23 +4,27 @@ import torchaudio
 import torch
 from random import randint
 import copy
+from augmentation import DataAugmentator
+import random
 
 class TrainDataset(data.Dataset):
 
-    def __init__(self, utterances_paths, input_parameters, random_crop_secs, sample_rate = 16000):
+    def __init__(self, utterances_paths, input_parameters, random_crop_secs, augmentation_prob = 0, sample_rate = 16000):
         
         self.utterances_paths = utterances_paths
         # I suspect when instantiating two datasets the parameters are overrided
         # TODO maybe avoid defining self.parameters to reduce memory usage
         self.parameters = copy.deepcopy(input_parameters) 
+        self.augmentation_prob = augmentation_prob
         self.sample_rate = sample_rate
         self.random_crop_secs = random_crop_secs
         self.random_crop_samples = int(self.random_crop_secs * self.sample_rate)
         self.num_samples = len(utterances_paths)
-        self.set_feature_extractor()
+        self.init_feature_extractor()
+        if self.augmentation_prob > 0: self.init_data_augmentator()
 
     
-    def set_feature_extractor(self):
+    def init_feature_extractor(self):
 
         self.spectogram_extractor = torchaudio.transforms.MelSpectrogram(
             n_fft = 512,
@@ -33,6 +37,17 @@ class TrainDataset(data.Dataset):
             center = False,
             normalized = False,
             norm = "slaney",
+        )
+
+    
+    def init_data_augmentator(self):
+
+        self.data_augmentator = DataAugmentator(
+            self.parameters.augmentation_noises_directory,
+            self.parameters.augmentation_noises_labels_path,
+            self.parameters.augmentation_rirs_directory,
+            self.parameters.augmentation_rirs_labels_path,
+            self.parameters.augmentation_window_size_secs,
         )
 
     
@@ -51,7 +66,18 @@ class TrainDataset(data.Dataset):
     
     def get_feature_vector(self, utterance_path):
 
-        waveform, sample_rate = torchaudio.load(utterance_path)
+        # By default, the resulting tensor object has dtype=torch.float32 and its value range is normalized within [-1.0, 1.0]!
+        waveform, original_sample_rate = torchaudio.load(utterance_path)
+
+        if original_sample_rate != self.sample_rate:
+            waveform = torchaudio.functional.resample(
+                waveform = waveform,
+                orig_freq = original_sample_rate, 
+                new_freq = self.sample_rate, 
+                )
+
+        if random.uniform(0, 0.999) > 1 - self.augmentation_prob:
+            waveform = self.data_augmentator(waveform, self.sample_rate)
 
         # torchaudio.load returns tensor, sample_rate
         # tensor is a Tensor with shape [channels, time]
@@ -59,8 +85,13 @@ class TrainDataset(data.Dataset):
         # librosa has an option to force to mono, torchaudio does not
         waveform = waveform.squeeze(0)
 
+        # We make padding to allow cropping longer segments
+        # (If not, we can only crop at most the duration of the shortest audio)
+        pad_left = max(0, self.random_crop_samples - waveform.shape[-1])
+        waveform = torch.nn.functional.pad(waveform, (pad_left, 0), mode = "constant")
+
         if self.random_crop_secs > 0:
-            # TODO torchaudio.load has frame_offset and num_frames params
+            # TODO torchaudio.load has frame_offset and num_frames params. Providing num_frames and frame_offset arguments is more efficient
             waveform = self.sample_audio_window(
                 waveform, 
                 random_crop_samples = self.random_crop_samples,
