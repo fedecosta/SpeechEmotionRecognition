@@ -84,10 +84,13 @@ class DataAugmentator:
     
     def apply_reverb(self, audio, sample_rate):
             
-        rir_wav, rir_sample_rate = torchaudio.load(
-            os.path.join(self.rirs_directory, random.choice(self.rirs_list).strip())
-        )
-
+        if self.rirs_directory is not None:
+            path = os.path.join(self.rirs_directory, random.choice(self.rirs_list).strip())
+        else:
+            path = random.choice(self.rirs_list).strip()
+        logger.debug(f"path: {path}")
+        rir_wav, rir_sample_rate = torchaudio.load(path)
+        logger.debug(f"first load ok")
         if rir_sample_rate != sample_rate:
             rir_wav = torchaudio.functional.resample(
                 waveform = rir_wav,
@@ -95,12 +98,16 @@ class DataAugmentator:
                 new_freq = sample_rate, 
             )
             rir_sample_rate = sample_rate
+        logger.debug(f"resampling ok")
 
+        # TODO first loading the audio and then cropping is unefficient
         # Clean up the RIR,  extract the main impulse, normalize the signal power
         normalized_rir = rir_wav[:, int(rir_sample_rate * 0.01) : int(rir_sample_rate * 1.3)]
         normalized_rir = normalized_rir / torch.norm(normalized_rir, p=2)
         
+        logger.debug(f"fftconvolve on going...")
         augmented_waveform = torch.mean(torchaudio.functional.fftconvolve(audio, normalized_rir), dim=0).unsqueeze(0)
+        logger.debug(f"fftconvolve ok")
 
         return augmented_waveform
             
@@ -153,13 +160,16 @@ class DataAugmentator:
             
         background_audio_line = random.choice(self.augmentation_list).strip()
 
-        background_audio_name = background_audio_line.split("\t")[0]
-        background_audio_type = background_audio_line.split("\t")[1].lower()
+        background_audio_name = background_audio_line.split("\t")[0].strip()
+        background_audio_type = background_audio_line.split("\t")[1].strip().lower()
 
-        noise, noise_sample_rate = torchaudio.load(
-            os.path.join(self.augmentation_directory, background_audio_name)
-        )
-
+        if self.augmentation_directory is not None:
+            path = os.path.join(self.augmentation_directory, background_audio_name)
+        else:
+            path = background_audio_name
+        logger.debug(f"path: {path}")
+        noise, noise_sample_rate = torchaudio.load(path)
+        logger.debug(f"first load ok")
         if noise_sample_rate != sample_rate:
             noise = torchaudio.functional.resample(
                 waveform = noise,
@@ -167,7 +177,9 @@ class DataAugmentator:
                 new_freq = sample_rate, 
             )
             noise_sample_rate = sample_rate
+        logger.debug(f"resampling ok")
 
+        # TODO first loading the audio and then cropping is unefficient
         cropped_noise = self.crop_noise(
             noise, 
             noise_sample_rate, 
@@ -189,7 +201,7 @@ class DataAugmentator:
         
         effect = random.choice(self.EFFECTS)
 
-        logger.debug(f"Data augmentation {effect} applied")
+        logger.debug(f"Data augmentation {effect} is going to be applied...")
         
         # getattr(self, effect) is equivalent to apply self.effect(audio, sample_rate)
         return getattr(self, effect)(audio, sample_rate)

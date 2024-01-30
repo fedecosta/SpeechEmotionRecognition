@@ -12,13 +12,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch import optim
 from torcheval.metrics.functional import multiclass_f1_score
-import torchaudio
 from torchsummary import summary
-
-if False:
-    import pandas as pd
-    import pickle
-    
+import wandb
 
 from data import TrainDataset
 from model import Classifier
@@ -58,6 +53,7 @@ class Trainer:
     def __init__(self, input_params):
 
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+        if input_params.use_weights_and_biases: self.init_wandb()
         self.set_device()
         self.set_random_seed()
         self.set_params(input_params)
@@ -67,7 +63,18 @@ class Trainer:
         self.load_loss_function()
         self.load_optimizer()
         self.initialize_training_variables()
-        # self.config_wandb()
+        if self.params.use_weights_and_biases: self.config_wandb()
+        
+
+    def init_wandb(self):
+        
+        # Init a wandb project
+            
+        self.wandb_run = wandb.init(
+            project = "emotions_trains_0", 
+            job_type = "training", 
+            entity = "upc-veu",
+            )
 
 
     def set_device(self):
@@ -84,6 +91,8 @@ class Trainer:
         if self.device == "cuda":
             self.gpus_count = torch.cuda.device_count()
             logger.info(f"{self.gpus_count} GPUs available.")
+        else:
+            self.gpus_count = 0
         
         logger.info("Device setted.")
     
@@ -136,12 +145,22 @@ class Trainer:
         logger.info("Setting params...")
 
         self.params = input_params
-        self.params.model_name = generate_model_name(
-           self.params, 
-           start_datetime = self.start_datetime, 
-           #wandb_run_id = wandb.run.id, # FIX when setting wandb
-           #wandb_run_name = wandb.run.name # FIX when setting wandb
-           )
+
+        self.params.model_architecture_name = f"{self.params.front_end}_{self.params.seq_to_seq_method}_{self.params.seq_to_one_method}"
+
+        if self.params.use_weights_and_biases:
+            self.params.model_name = generate_model_name(
+            self.params, 
+            start_datetime = self.start_datetime, 
+            wandb_run_id = wandb.run.id, 
+            wandb_run_name = wandb.run.name 
+            )
+        else:
+            self.params.model_name = generate_model_name(
+            self.params, 
+            start_datetime = self.start_datetime, 
+            )
+
 
         if self.params.load_checkpoint == True:
 
@@ -416,26 +435,16 @@ class Trainer:
 
     def config_wandb(self):
 
-        if False:
+        # 1 - Save the params
+        self.wandb_config = vars(self.params)
 
-            # Init a wandb project
-            import wandb
-            run = wandb.init(
-                project = "emotions_models_1", 
-                job_type = "training", 
-                entity = "upc-veu",
-                )
+        # 3 - Save additional params
 
-            # 1 - Save the params
-            self.wandb_config = vars(self.params)
+        self.wandb_config["total_trainable_params"] = self.total_trainable_params
+        self.wandb_config["gpus"] = self.gpus_count
 
-            # 3 - Save additional params
-
-            self.wandb_config["total_trainable_params"] = self.total_trainable_params
-            self.wandb_config["gpus"] = self.gpus
-
-            # 4 - Update the wandb config
-            wandb.config.update(self.wandb_config)
+        # 4 - Update the wandb config
+        wandb.config.update(self.wandb_config)
 
 
     def evaluate_training(self):
@@ -735,7 +744,7 @@ class Trainer:
             self.check_early_stopping()
             self.check_print_training_info()
 
-            if False:
+            if self.params.use_weights_and_biases:
                 try:
                     wandb.log(
                         {
@@ -783,64 +792,61 @@ class Trainer:
 
     def delete_version_artifacts(self):
 
-        if False:
+        logger.info(f'Starting to delete not latest checkpoint version artifacts...')
 
-            logger.info(f'Starting to delete not latest checkpoint version artifacts...')
+        # We want to keep only the latest checkpoint because of wandb memory storage limit
 
-            # We want to keep only the latest checkpoint because of wandb memory storage limit
+        api = wandb.Api()
+        actual_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        
+        # We need to finish the run and let wandb upload all files
+        wandb.run.finish()
 
-            api = wandb.Api()
-            actual_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        for artifact_version in actual_run.logged_artifacts():
             
-            # We need to finish the run and let wandb upload all files
-            run.finish()
+            if 'latest' in artifact_version.aliases:
+                latest_version = True
+            else:
+                latest_version = False
 
-            for artifact_version in actual_run.logged_artifacts():
-                
-                if 'latest' in artifact_version.aliases:
-                    latest_version = True
-                else:
-                    latest_version = False
+            if latest_version == False:
+                logger.info(f'Deleting not latest artifact {artifact_version.name} from wandb...')
+                artifact_version.delete(delete_aliases=True)
+                logger.info(f'Deleted.')
 
-                if latest_version == False:
-                    logger.info(f'Deleting not latest artifact {artifact_version.name} from wandb...')
-                    artifact_version.delete(delete_aliases=True)
-                    logger.info(f'Deleted.')
-
-            logger.info(f'All not latest artifacts deleted.')
+        logger.info(f'All not latest artifacts deleted.')
 
 
     def save_model_artifact(self):
 
-        if False:
+        # Save checkpoint as a wandb artifact
 
-            # Save checkpoint as a wandb artifact
+        logger.info(f'Starting to save checkpoint as wandb artifact...')
 
-            logger.info(f'Starting to save checkpoint as wandb artifact...')
+        # Define the artifact
+        trained_model_artifact = wandb.Artifact(
+            name = self.params.model_name,
+            type = "trained_model",
+            description = self.params.model_name_prefix, # TODO set as an argparse input param
+            metadata = self.wandb_config,
+        )
 
-            # Define the artifact
-            trained_model_artifact = wandb.Artifact(
-                name = self.params.model_name,
-                type = "trained_model",
-                description = self.params.model_name_prefix, # TODO set as an argparse input param
-                metadata = self.wandb_config,
-            )
+        # Add folder directory
+        checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
+        logger.info(f'checkpoint_folder {checkpoint_folder}')
+        trained_model_artifact.add_dir(checkpoint_folder)
 
-            # Add folder directory
-            checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
-            logger.info(f'checkpoint_folder {checkpoint_folder}')
-            trained_model_artifact.add_dir(checkpoint_folder)
+        # Log the artifact
+        wandb.run.log_artifact(trained_model_artifact)
 
-            # Log the artifact
-            run.log_artifact(trained_model_artifact)
-
-            logger.info(f'Artifact saved.')
+        logger.info(f'Artifact saved.')
 
 
     def main(self):
 
         self.train(self.starting_epoch, self.params.max_epochs)
-        #self.save_model_artifact()
+        if self.params.use_weights_and_biases: self.save_model_artifact()
+        if self.params.use_weights_and_biases: self.delete_version_artifacts()
 
 #----------------------------------------------------------------------
 
@@ -1246,6 +1252,13 @@ class ArgsParser:
             '--augmentation_window_size_secs', 
             type = float, 
             help = '.' # TODO complete
+            )
+        
+        self.parser.add_argument(
+            "--use_weights_and_biases", 
+            action = argparse.BooleanOptionalAction,
+            default = TRAIN_DEFAULT_SETTINGS['use_weights_and_biases'],
+            help = "Use weights and Biases.",
             )
         # ---------------------------------------------------------------------
 

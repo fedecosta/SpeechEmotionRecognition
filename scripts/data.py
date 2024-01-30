@@ -6,6 +6,28 @@ from random import randint
 import copy
 from augmentation import DataAugmentator
 import random
+import logging
+
+# ---------------------------------------------------------------------
+# Logging
+
+# Set logging config
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%y-%m-%d %H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
+# ---------------------------------------------------------------------
 
 class TrainDataset(data.Dataset):
 
@@ -115,6 +137,8 @@ class TrainDataset(data.Dataset):
 
         # Each utterance_path is like: audio_path\tlabel
         utterance_tuple = self.utterances_paths[index].strip().split('\t')
+
+        logger.debug(f"utterance_tuple: {utterance_tuple}")
 
         utterance_path = utterance_tuple[0]
         utterance_label = utterance_tuple[1]
