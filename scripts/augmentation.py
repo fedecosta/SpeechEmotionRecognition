@@ -45,7 +45,7 @@ class DataAugmentator:
 
         # TODO move to settings
         self.EFFECTS = ["apply_speed_perturbation", "apply_reverb", "add_background_noise"]           
-        self.SPEEDS = ["0.9", "1.1"] # If 1 is an option, no augmentation is done
+        self.SPEEDS = ["0.9", "1.1"] # If 1 is an option, no augmentation is done!
         self.SNR_NOISE_RANGE = [0, 15]
         self.SNR_SPEECH_RANGE = [10, 30]
         self.SNR_MUSIC_RANGE = [5, 15]

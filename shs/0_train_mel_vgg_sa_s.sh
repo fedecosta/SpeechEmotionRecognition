@@ -9,4 +9,4 @@ python scripts/train.py \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
 	--augmentation_window_size_secs 2.0 \
-	--no-use_weights_and_biases
+	--use_weights_and_biases

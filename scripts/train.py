@@ -70,11 +70,12 @@ class Trainer:
         
         # Init a wandb project
             
-        self.wandb_run = wandb.init(
+        wandb_run = wandb.init(
             project = "emotions_trains_0", 
             job_type = "training", 
             entity = "upc-veu",
             )
+        del wandb_run
 
 
     def set_device(self):
@@ -116,9 +117,10 @@ class Trainer:
         '''Load trained model checkpoint to continue its training.'''
 
         # Load checkpoint
-        checkpoint_folder = self.params.checkpoint_file_folder
-        checkpoint_file_name = self.params.checkpoint_file_name
-        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+        checkpoint_path = os.path.join(
+            self.params.checkpoint_file_folder, 
+            self.params.checkpoint_file_name,
+        )
 
         logger.info(f"Loading checkpoint from {checkpoint_path}")
 
@@ -169,6 +171,7 @@ class Trainer:
             # When we load checkpoint params, all input params are overwriten. 
             # So we need to set load_checkpoint flag to True
             self.params.load_checkpoint = True
+            # TODO here we could set a new max_epochs value
         
         logger.info("params setted.")
 
@@ -180,7 +183,12 @@ class Trainer:
         if not os.path.exists(self.params.log_file_folder):
             os.makedirs(self.params.log_file_folder)
         
-        logger_file_name = f"{self.params.model_name}.log"
+        if self.params.use_weights_and_biases:
+            logger_file_name = f"{self.start_datetime}_{wandb.run.id}_{wandb.run.name}.log"
+        else:
+            logger_file_name = f"{self.start_datetime}.log"
+        logger_file_name = logger_file_name.replace(':', '_').replace(' ', '_').replace('-', '_')
+
         logger_file_path = os.path.join(self.params.log_file_folder, logger_file_name)
         logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
         logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
@@ -191,7 +199,7 @@ class Trainer:
     
     def format_train_labels(self):
 
-        self.train_labels_lines = format_training_labels(
+        return format_training_labels(
             labels_path = self.params.train_labels_path,
             prepend_directory = self.params.train_data_dir,
             header = True,
@@ -200,7 +208,7 @@ class Trainer:
     
     def format_validation_labels(self):
 
-        self.validation_labels_lines = format_training_labels(
+        return format_training_labels(
             labels_path = self.params.validation_labels_path,
             prepend_directory = self.params.validation_data_dir,
             header = True,
@@ -209,17 +217,18 @@ class Trainer:
 
     def format_labels(self):
 
-        self.format_train_labels()
-        self.format_validation_labels()
+        '''Return (train_labels_lines, validation_labels_lines)'''
+
+        return self.format_train_labels(), self.format_validation_labels()
          
 
-    def load_training_data(self):
+    def load_training_data(self, train_labels_lines):
 
         logger.info(f'Loading training data with labels from {self.params.train_labels_path}')
 
         # Instanciate a Dataset class
         training_dataset = TrainDataset(
-            utterances_paths = self.train_labels_lines, 
+            utterances_paths = train_labels_lines, 
             input_parameters = self.params,
             random_crop_secs = self.params.training_random_crop_secs,
             augmentation_prob = self.params.training_augmentation_prob,
@@ -233,6 +242,7 @@ class Trainer:
             'num_workers': self.params.num_workers,
             }
         
+        # TODO dont add to the class to get a lighter model?
         # Instanciate a DataLoader class
         self.training_generator = DataLoader(
             training_dataset, 
@@ -250,13 +260,13 @@ class Trainer:
             self.params.evaluation_batch_size = 1
 
 
-    def load_validation_data(self):
+    def load_validation_data(self, validation_labels_lines):
 
         logger.info(f'Loading data from {self.params.validation_labels_path}')
 
         # Instanciate a Dataset class
         validation_dataset = TrainDataset(
-            utterances_paths = self.validation_labels_lines, 
+            utterances_paths = validation_labels_lines, 
             input_parameters = self.params,
             random_crop_secs = self.params.evaluation_random_crop_secs,
             augmentation_prob = self.params.evaluation_augmentation_prob,
@@ -266,6 +276,7 @@ class Trainer:
         # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
         self.set_evaluation_batch_size()
         
+        # TODO dont add to the class to get a lighter model?
         # Instanciate a DataLoader class
         self.evaluating_generator = DataLoader(
             validation_dataset, 
@@ -283,9 +294,10 @@ class Trainer:
 
     def load_data(self):
 
-        self.format_labels()
-        self.load_training_data()
-        self.load_validation_data()
+        train_labels_lines, validation_labels_lines = self.format_labels()
+        self.load_training_data(train_labels_lines)
+        self.load_validation_data(validation_labels_lines)
+        del train_labels_lines, validation_labels_lines
             
 
     def load_checkpoint_network(self):
@@ -319,7 +331,7 @@ class Trainer:
             # TODO Use nn.parallel.DistributedDataParallel instead of multiprocessing or nn.DataParallel!!!!
             self.net = nn.DataParallel(self.net) 
         
-        summary(self.net, (150, self.params.front_end_input_vectors_dimension))
+        #summary(self.net, (150, self.params.front_end_input_vectors_dimension))
 
         # Calculate trainable parameters (to estimate model complexity)
         self.total_trainable_params = sum(
@@ -797,7 +809,7 @@ class Trainer:
         # We want to keep only the latest checkpoint because of wandb memory storage limit
 
         api = wandb.Api()
-        actual_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        actual_run = api.run(f"{wandb.run.entity}/{wandb.run.project}/{wandb.run.id}")
         
         # We need to finish the run and let wandb upload all files
         wandb.run.finish()
@@ -827,7 +839,7 @@ class Trainer:
         trained_model_artifact = wandb.Artifact(
             name = self.params.model_name,
             type = "trained_model",
-            description = self.params.model_name_prefix, # TODO set as an argparse input param
+            description = self.params.model_architecture_name,
             metadata = self.wandb_config,
         )
 
