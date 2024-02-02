@@ -2,6 +2,8 @@ from torch import nn
 import torch
 from torch.nn import functional as F
 import logging
+import copy
+import math
 
 # Based on https://peterbloem.nl/blog/transformers
 # TODO make dim asserts in every new class
@@ -266,6 +268,73 @@ class TransformerStacked(nn.Module):
         return output
 
 
+# We call "Reduced Multi-Head Attention" to the implementation of the paper: https://arxiv.org/abs/2007.13199
+
+def new_parameter(*size):
+
+    out = torch.nn.Parameter(torch.FloatTensor(*size))
+    torch.nn.init.xavier_normal_(out)
+
+    return out
+
+
+def innerKeyValueAttention(query, key, value):
+
+    d_k = query.size(-1)
+    scores = torch.diagonal(torch.matmul(key, query) / math.sqrt(d_k), dim1=-2, dim2=-1).view(value.size(0),value.size(1), value.size(2))
+    p_attn = F.softmax(scores, dim = -2)
+    weighted_vector = value * p_attn.unsqueeze(-1)
+    ct = torch.sum(weighted_vector, dim=1)
+    return ct, p_attn
+
+
+class ReducedMultiHeadAttention(nn.Module):
+    
+    def __init__(self, encoder_size, heads_number):
+        super().__init__()
+
+        self.encoder_size = encoder_size
+        assert self.encoder_size % heads_number == 0 # d_model
+        self.head_size = self.encoder_size // heads_number 
+        self.heads_number = heads_number
+        self.query = new_parameter(self.head_size, self.heads_number)
+        self.aligmment = None
+
+        
+    def getAlignments(self,ht):
+
+        batch_size = ht.size(0)
+        key = ht.view(batch_size*ht.size(1), self.heads_number, self.head_size)
+        value = ht.view(batch_size,-1,self.heads_number, self.head_size)
+        headsContextVectors, self.alignment = innerKeyValueAttention(self.query, key, value)
+
+        return self.alignment 
+    
+
+    def getHeadsContextVectors(self,ht):    
+
+        batch_size = ht.size(0)
+        key = ht.view(batch_size*ht.size(1), self.heads_number, self.head_size)
+        value = ht.view(batch_size,-1,self.heads_number, self.head_size)
+        headsContextVectors, self.alignment = innerKeyValueAttention(self.query, key, value)
+
+        return headsContextVectors
+
+
+    def forward(self, ht):
+
+        logger.debug(f"ht.size(): {ht.size()}")
+
+        headsContextVectors = self.getHeadsContextVectors(ht)
+        logger.debug(f"headsContextVectors.size(): {headsContextVectors.size()}")
+
+        # original line
+        #return headsContextVectors.view(headsContextVectors.size(0),-1), copy.copy(self.alignment)
+        
+        return headsContextVectors
+
+
+# ---------------------------------------------------------------------
 # 2 - Pooling components (sequence to one components, the input dimension is the same than the output dimension)
 
 class StatisticalPooling(nn.Module):
@@ -285,6 +354,8 @@ class StatisticalPooling(nn.Module):
 
 
     def forward(self, input_tensors):
+
+        logger.debug(f"input_tensors.size(): {input_tensors.size()}")
 
         b, t, e = input_tensors.size()
         assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
@@ -322,27 +393,27 @@ class AttentionPooling(nn.Module):
 
     def forward(self, input_tensors):
 
-        #logger.info(f"input_tensors.size(): {input_tensors.size()}")
+        #logger.debug(f"input_tensors.size(): {input_tensors.size()}")
 
-        #logger.info(f"self.query[0]: {self.query[0]}")
+        #logger.debug(f"self.query[0]: {self.query[0]}")
 
         b, t, e = input_tensors.size()
         assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
 
         attention_scores = torch.matmul(input_tensors, self.query)
-        #logger.info(f"attention_scores.size(): {attention_scores.size()}")
-        #logger.info(f"self.query.size(): {self.query.size()}")
+        #logger.debug(f"attention_scores.size(): {attention_scores.size()}")
+        #logger.debug(f"self.query.size(): {self.query.size()}")
         attention_scores = attention_scores.squeeze(dim = -1)
-        #logger.info(f"attention_scores.size(): {attention_scores.size()}")
+        #logger.debug(f"attention_scores.size(): {attention_scores.size()}")
         attention_scores = F.softmax(attention_scores, dim = 1)
-        #logger.info(f"attention_scores.size(): {attention_scores.size()}")
+        #logger.debug(f"attention_scores.size(): {attention_scores.size()}")
         attention_scores = attention_scores.unsqueeze(dim = -1)
-        #logger.info(f"attention_scores.size(): {attention_scores.size()}")
+        #logger.debug(f"attention_scores.size(): {attention_scores.size()}")
 
         output = torch.bmm(attention_scores.transpose(1, 2), input_tensors)
-        #logger.info(f"output.size(): {output.size()}")
+        #logger.debug(f"output.size(): {output.size()}")
         output = output.view(output.size()[0], output.size()[1] * output.size()[2])
-        #logger.info(f"output.size(): {output.size()}")
+        #logger.debug(f"output.size(): {output.size()}")
         
         return output
         

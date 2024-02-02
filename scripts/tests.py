@@ -1,9 +1,28 @@
 from utils import format_training_labels
 import torchaudio
+import torch
 from random import randint
+import pandas as pd
+from torcheval.metrics.functional import multiclass_f1_score
 
-path = "/home/usuaris/veussd/federico.costa/datasets/data_augmentation/open_slr/slr_17/speech/us-gov/speech-us-gov-0249.wav"
-noise, noise_sample_rate = torchaudio.load(path)
+input = torch.tensor([0, 2, 1, 3])
+target = torch.tensor([0, 1, 2, 3])
+print(multiclass_f1_score(input, target, num_classes=4, average=None))
+
+
+
+
+
+
+
+
+
+
+
+
+if False:
+    path = "/home/usuaris/veussd/federico.costa/datasets/data_augmentation/open_slr/slr_17/speech/us-gov/speech-us-gov-0249.wav"
+    noise, noise_sample_rate = torchaudio.load(path)
 
 
 

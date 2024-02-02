@@ -17,7 +17,7 @@ import wandb
 
 from data import TrainDataset
 from model import Classifier
-from utils import format_training_labels, generate_model_name
+from utils import format_training_labels, generate_model_name, get_memory_info
 from settings import TRAIN_DEFAULT_SETTINGS
 
 # ---------------------------------------------------------------------
@@ -64,6 +64,7 @@ class Trainer:
         self.load_optimizer()
         self.initialize_training_variables()
         if self.params.use_weights_and_biases: self.config_wandb()
+        self.info_mem(logger_level = "DEBUG")
         
 
     def init_wandb(self):
@@ -92,6 +93,7 @@ class Trainer:
         if self.device == "cuda":
             self.gpus_count = torch.cuda.device_count()
             logger.info(f"{self.gpus_count} GPUs available.")
+            # Batch size should be divisible by number of GPUs
         else:
             self.gpus_count = 0
         
@@ -145,7 +147,7 @@ class Trainer:
         '''Set Trainer class parameters.'''
 
         logger.info("Setting params...")
-
+        
         self.params = input_params
 
         self.params.model_architecture_name = f"{self.params.front_end}_{self.params.seq_to_seq_method}_{self.params.seq_to_one_method}"
@@ -234,6 +236,10 @@ class Trainer:
             augmentation_prob = self.params.training_augmentation_prob,
             sample_rate = self.params.sample_rate,
             )
+        
+        # To be used in the weighted loss
+        self.training_dataset_classes_weights = training_dataset.get_classes_weights()
+        self.training_dataset_classes_weights = torch.tensor(self.training_dataset_classes_weights).float().to(self.device)
         
         # Load DataLoader params
         data_loader_parameters = {
@@ -330,13 +336,36 @@ class Trainer:
         if torch.cuda.device_count() > 1:
             # TODO Use nn.parallel.DistributedDataParallel instead of multiprocessing or nn.DataParallel!!!!
             self.net = nn.DataParallel(self.net) 
-        
-        #summary(self.net, (150, self.params.front_end_input_vectors_dimension))
 
+        logger.info(self.net)
+
+        self.total_trainable_params = 0
+        parms_dict = {}
+        for name, parameter in self.net.named_parameters():
+
+            layer_name = name.split(".")[1]
+            if layer_name not in parms_dict.keys():
+                parms_dict[layer_name] = 0
+
+            if not parameter.requires_grad:
+                continue
+            trainable_params = parameter.numel()
+
+            #logger.info(f"{name}: {trainable_params}")
+            
+            parms_dict[layer_name] = parms_dict[layer_name] + trainable_params
+            
+            self.total_trainable_params += trainable_params
+
+        for layer_name in parms_dict.keys():
+            logger.info(f"{layer_name}: {parms_dict[layer_name]}")
+
+        #summary(self.net, (150, self.params.feature_extractor_output_vectors_dimension))
+        
         # Calculate trainable parameters (to estimate model complexity)
-        self.total_trainable_params = sum(
-            p.numel() for p in self.net.parameters() if p.requires_grad
-        )
+        #self.total_trainable_params = sum(
+        #    p.numel() for p in self.net.parameters() if p.requires_grad
+        #)
 
         logger.info(f"Network loaded, total_trainable_params: {self.total_trainable_params}")
 
@@ -346,7 +375,9 @@ class Trainer:
         logger.info("Loading the loss function...")
 
         # The nn.CrossEntropyLoss() criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class
-        self.loss_function = nn.CrossEntropyLoss()
+        self.loss_function = nn.CrossEntropyLoss(
+            weight = self.training_dataset_classes_weights,
+        )
 
         logger.info("Loss function loaded.")
 
@@ -463,23 +494,34 @@ class Trainer:
 
         logger.info(f"Evaluating training task...")
 
+        self.info_mem(logger_level = "DEBUG")
+
         with torch.no_grad():
 
             # Switch torch to evaluation mode
             self.net.eval()
 
-            final_predictions, final_labels = torch.tensor([]).to(self.device), torch.tensor([]).to(self.device)
+            final_predictions, final_labels = torch.tensor([]).to("cpu"), torch.tensor([]).to("cpu")
             for batch_number, (input, label) in enumerate(self.training_generator):
 
+                if batch_number % 1000 == 0:
+                    logger.info(f"Evaluating training task batch {batch_number} of {len(self.training_generator)}...")
+
+                self.info_mem(logger_level = "DEBUG")
+
                 # Assign input and label to device
-                input, label = input.float().to(self.device), label.long().to(self.device)
+                input, label = input.float().to("cpu"), label.long().to("cpu")
                 if batch_number == 0: logger.info(f"input.size(): {input.size()}")
+                self.info_mem(logger_level = "DEBUG")
 
                 # Calculate prediction and loss
-                prediction  = self.net(input_tensor = input, label = label)
+                prediction  = self.net(input_tensor = input, label = label).to("cpu")
+                self.info_mem(logger_level = "DEBUG")
 
                 final_predictions = torch.cat(tensors = (final_predictions, prediction))
+                self.info_mem(logger_level = "DEBUG")
                 final_labels = torch.cat(tensors = (final_labels, label))
+                self.info_mem(logger_level = "DEBUG")
 
             metric_score = multiclass_f1_score(
                 input = final_predictions, 
@@ -488,21 +530,24 @@ class Trainer:
                 average = 'micro', # TODO think what method is best to define
                 )
             
+            self.info_mem(logger_level = "DEBUG")
+            
             self.training_eval_metric = metric_score
 
             del final_predictions
             del final_labels
+
+            self.info_mem(logger_level = "DEBUG")
 
         # Return to torch training mode
         self.net.train()
 
         logger.info(f"Training task evaluated.")
         logger.info(f"F1-score (micro) on training set: {self.training_eval_metric:.3f}")
+        self.info_mem(logger_level = "DEBUG")
 
 
     def evaluate_validation(self):
-
-        # TODO validation with batch size 1 gets out of memory error!!!
 
         logger.info(f"Evaluating validation task...")
 
@@ -511,15 +556,18 @@ class Trainer:
             # Switch torch to evaluation mode
             self.net.eval()
 
-            final_predictions, final_labels = torch.tensor([]).to(self.device), torch.tensor([]).to(self.device)
+            final_predictions, final_labels = torch.tensor([]).to("cpu"), torch.tensor([]).to("cpu")
             for batch_number, (input, label) in enumerate(self.evaluating_generator):
 
+                if batch_number % 1000 == 0:
+                    logger.info(f"Evaluating validation task batch {batch_number} of {len(self.evaluating_generator)}...")
+
                 # Assign input and label to device
-                input, label = input.float().to(self.device), label.long().to(self.device)
+                input, label = input.float().to("cpu"), label.long().to("cpu")
                 if batch_number == 0: logger.info(f"input.size(): {input.size()}")
 
                 # Calculate prediction and loss
-                prediction  = self.net(input_tensor = input, label = label)
+                prediction  = self.net(input_tensor = input, label = label).to("cpu")
 
                 final_predictions = torch.cat(tensors = (final_predictions, prediction))
                 final_labels = torch.cat(tensors = (final_labels, label))
@@ -541,13 +589,14 @@ class Trainer:
 
         logger.info(f"Validation task evaluated.")
         logger.info(f"F1-score (micro) on validation set: {self.validation_eval_metric:.3f}")
+        self.info_mem(logger_level = "DEBUG")
 
 
     def evaluate(self):
 
         self.evaluate_training()
         self.evaluate_validation()
-        
+             
 
     def save_model(self):
 
@@ -660,6 +709,7 @@ class Trainer:
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
             logger.info(f"Consecutive validations without improvement or optimizer update: {self.validations_without_improvement_or_opt_update}")
             logger.info('Evaluating and saving done.')
+            self.info_mem(self.step, logger_level = "DEBUG")
 
 
     def check_update_optimizer(self):
@@ -711,6 +761,9 @@ class Trainer:
             info_to_print = info_to_print + f"Best validation score: {self.best_model_validation_eval_metric:.3f}..."
 
             logger.info(info_to_print)
+
+            # Uncomment for memory usage info 
+            self.info_mem(self.step, logger_level = "DEBUG")
 
             
     def train_single_epoch(self, epoch):
@@ -860,6 +913,21 @@ class Trainer:
         if self.params.use_weights_and_biases: self.save_model_artifact()
         if self.params.use_weights_and_biases: self.delete_version_artifacts()
 
+
+    def info_mem(self, step = None, logger_level = "INFO"):
+
+        '''Logs CPU and GPU free memory.'''
+        
+        cpu_available_pctg, gpu_free = get_memory_info()
+        if step is not None:
+            message = f"Step {self.step}: CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}"
+        else:
+            message = f"CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}"
+        
+        if logger_level == "INFO":
+            logger.info(message)
+        elif logger_level == "DEBUG":
+            logger.debug(message)
 #----------------------------------------------------------------------
 
 
@@ -880,408 +948,337 @@ class ArgsParser:
     def add_parser_args(self):
         
         # Directory parameters
-        # ---------------------------------------------------------------------
-
-        self.parser.add_argument(
-            '--train_labels_path', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['train_labels_path'],
-            help = 'Path of the file containing the training examples paths and labels.',
-            )
-        
-        self.parser.add_argument(
-            '--train_data_dir', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
-            help = 'Optional additional directory to prepend to the train_labels_path paths.',
-            )
-        
-        self.parser.add_argument(
-            '--validation_labels_path', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['validation_labels_path'],
-            help = 'Path of the file containing the validation examples paths and labels.',
-            )
-        
-        self.parser.add_argument(
-            '--validation_data_dir', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['validation_data_dir'],
-            help = 'Optional additional directory to prepend to the validation_labels_path paths.',
-            )
-
-        self.parser.add_argument(
-            '--model_output_folder', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['model_output_folder'], 
-            help = 'Directory where model outputs and configs are saved.',
-            )
-
-        self.parser.add_argument(
-            '--log_file_folder',
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
-            help = 'Name of folder that will contain the log file.',
-            )
-        # ---------------------------------------------------------------------
-
-        # Training Parameters
-        # ---------------------------------------------------------------------
-        self.parser.add_argument(
-            '--max_epochs',
-            type = int,
-            default = TRAIN_DEFAULT_SETTINGS['max_epochs'],
-            help = 'Max number of epochs to train.',
-            )
-
-        self.parser.add_argument(
-            '--training_batch_size', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['training_batch_size'],
-            help = "Size of training batches.",
-            )
-
-        self.parser.add_argument(
-            '--evaluation_batch_size', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['evaluation_batch_size'],
-            help = "Size of evaluation batches.",
-            )
-
-        self.parser.add_argument(
-            '--eval_and_save_best_model_every', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['eval_and_save_best_model_every'],
-            help = "The model is evaluated on train and validation sets and saved every eval_and_save_best_model_every steps. \
-                Set to 0 if you don't want to execute this utility.",
-            )
-        
-        self.parser.add_argument(
-            '--print_training_info_every', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['print_training_info_every'],
-            help = "Training info is printed every print_training_info_every steps. \
-                Set to 0 if you don't want to execute this utility.",
-            )
-
-        self.parser.add_argument(
-            '--early_stopping', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['early_stopping'],
-            help = "Training is stopped if there are early_stopping consectuive validations without improvement. \
-                Set to 0 if you don't want to execute this utility.",
-            )
-
-        self.parser.add_argument(
-            '--update_optimizer_every', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['update_optimizer_every'],
-            help = "Some optimizer parameters will be updated every update_optimizer_every consecutive validations without improvement. \
-                Set to 0 if you don't want to execute this utility.",
-            )
-
-        self.parser.add_argument(
-            '--load_checkpoint',
-            action = argparse.BooleanOptionalAction,
-            default = TRAIN_DEFAULT_SETTINGS['load_checkpoint'],
-            help = 'Set to True if you want to load a previous checkpoint and continue training from that point. \
-                Loaded parameters will overwrite all inputted parameters.',
-            )
-
-        self.parser.add_argument(
-            '--checkpoint_file_folder',
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['checkpoint_file_folder'],
-            help = 'Name of folder that contain the model checkpoint file. Mandatory if load_checkpoint is True.',
-            )
-        
-        self.parser.add_argument(
-            '--checkpoint_file_name',
-            type = str, 
-            help = 'Name of the model checkpoint file. Mandatory if load_checkpoint is True.',
-            )
-        
-        # ---------------------------------------------------------------------
-
-        # Evaluation Parameters
-        # ---------------------------------------------------------------------
-        # TODO see this
-        if False:
+        if True:
+            
             self.parser.add_argument(
-                '--evaluation_type', 
+                '--train_labels_path', 
                 type = str, 
-                choices = ['random_crop', 'total_length'],
-                default = TRAIN_DEFAULT_SETTINGS['evaluation_type'], 
-                help = 'With random_crop the utterances are croped at random with random_crop_secs secs before doing the forward pass.\
-                    In this case, samples are batched with batch_size.\
-                    With total_length, full length audios are passed through the forward.\
-                    In this case, samples are automatically batched with batch_size = 1, since they have different lengths.',
+                default = TRAIN_DEFAULT_SETTINGS['train_labels_path'],
+                help = 'Path of the file containing the training examples paths and labels.',
+                )
+            
+            self.parser.add_argument(
+                '--train_data_dir', 
+                type = str, 
+                help = 'Optional additional directory to prepend to the train_labels_path paths.',
+                )
+            
+            self.parser.add_argument(
+                '--validation_labels_path', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['validation_labels_path'],
+                help = 'Path of the file containing the validation examples paths and labels.',
+                )
+            
+            self.parser.add_argument(
+                '--validation_data_dir', 
+                type = str, 
+                help = 'Optional additional directory to prepend to the validation_labels_path paths.',
                 )
 
+            self.parser.add_argument(
+                '--augmentation_noises_labels_path', 
+                type = str, 
+                help = 'Path of the file containing the background noises audio paths and labels.'
+                )
+            
+            self.parser.add_argument(
+                '--augmentation_noises_directory', 
+                type = str,
+                help = 'Optional additional directory to prepend to the augmentation_labels_path paths.',
+                )
 
-        # ---------------------------------------------------------------------
+            self.parser.add_argument(
+                '--augmentation_rirs_labels_path', 
+                type = str, 
+                help = 'Path of the file containing the RIRs audio paths.'
+                )
+            
+            self.parser.add_argument(
+                '--augmentation_rirs_directory', 
+                type = str, 
+                help = 'Optional additional directory to prepend to the rirs_labels_path paths.',
+                )
+
+            self.parser.add_argument(
+                '--model_output_folder', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['model_output_folder'], 
+                help = 'Directory where model outputs and configs are saved.',
+                )
+
+            self.parser.add_argument(
+                '--checkpoint_file_folder',
+                type = str, 
+                help = 'Name of folder that contain the model checkpoint file. Mandatory if load_checkpoint is True.',
+                )
+            
+            self.parser.add_argument(
+                '--checkpoint_file_name',
+                type = str, 
+                help = 'Name of the model checkpoint file. Mandatory if load_checkpoint is True.',
+                )
+
+            self.parser.add_argument(
+                '--log_file_folder',
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
+                help = 'Name of folder that will contain the log file.',
+                )
 
         # Data Parameters
-        # ---------------------------------------------------------------------
+        if True:
+            
+            self.parser.add_argument(
+                '--sample_rate', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['sample_rate'],
+                help = "Sample rate that you want to use (every audio loaded is resampled to this frequency)."
+                )
+            
+            self.parser.add_argument(
+                '--training_random_crop_secs', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['training_random_crop_secs'], 
+                help = 'Cut the training input audio with random_crop_secs length at a random starting point. \
+                    If 0, the full audio is loaded.'
+                )
 
-        self.parser.add_argument(
-            '--training_random_crop_secs', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['training_random_crop_secs'], 
-            help = 'Cut the training input audio with random_crop_secs length at a random starting point. \
-                If 0, the full audio is loaded.'
-            )
+            self.parser.add_argument(
+                '--evaluation_random_crop_secs', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['evaluation_random_crop_secs'], 
+                help = 'Cut the evaluation input audio with random_crop_secs length at a random starting point. \
+                    If 0, the full audio is loaded.'
+                )
 
-        self.parser.add_argument(
-            '--evaluation_random_crop_secs', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['evaluation_random_crop_secs'], 
-            help = 'Cut the evaluation input audio with random_crop_secs length at a random starting point. \
-                If 0, the full audio is loaded.'
-            )
+            self.parser.add_argument(
+                '--num_workers', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['num_workers'],
+                help = 'num_workers to be used by the data loader.'
+                )
+        
+        # Data Augmentation arguments
+        if True:
 
-        self.parser.add_argument(
-            '--sample_rate', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['sample_rate'],
-            help = "Sample rate that you want to use (every audio loaded is resampled to this frequency)."
-            )
+            self.parser.add_argument(
+                '--training_augmentation_prob', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['training_augmentation_prob'],
+                help = 'Probability of applying data augmentation to each file. Set to 0 if not augmentation is desired.'
+                )
 
-#         self.parser.add_argument(
-#             '--normalization', 
-#             type = str, 
-#             default = TRAIN_DEFAULT_SETTINGS['normalization'], 
-#             choices = ['cmn', 'cmvn', 'full'],
-#             help = 'Type of normalization applied to the features when evaluating in validation. \
-#                 It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
-#             )
+            self.parser.add_argument(
+                '--evaluation_augmentation_prob', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['evaluation_augmentation_prob'],
+                help = 'Probability of applying data augmentation to each file. Set to 0 if not augmentation is desired.'
+                )
 
-        self.parser.add_argument(
-            '--num_workers', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['num_workers'],
-            help = 'num_workers to be used by the data loader.'
-            )
-        # ---------------------------------------------------------------------
+            self.parser.add_argument(
+                '--augmentation_window_size_secs', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['augmentation_window_size_secs'],
+                help = 'Cut the audio with augmentation_window_size_secs length at a random starting point. \
+                    If 0, the full audio is loaded.'
+                )
         
         # Network Parameters
-        # ---------------------------------------------------------------------
-        
-        self.parser.add_argument(
-            '--number_classes', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['number_classes'],
-            help = "Number of classes to classify.",
-            )
+        if True:
 
-        self.parser.add_argument(
-            '--front_end_input_vectors_dimension', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['front_end_input_vectors_dimension'], 
-            help = 'Dimension of each vector that will be input to the front-end (usually number of mels in mel-spectrogram).'
-            )
-        
-        self.parser.add_argument(
-            '--pooling_input_output_dimension', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['pooling_input_output_dimension'], 
-            help = 'Each input and output vector of the pooling component will have 1 x pooling_input_output_size dimension.',
-            )
-
-        self.parser.add_argument(
-            '--front_end', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['front_end'],
-            choices = ['VGG', 'Resnet34', 'Resnet101'], 
-            help = 'Type of Front-end used. \
-                VGG for a N-block VGG architecture.'
-            )
+            self.parser.add_argument(
+                '--feature_extractor', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['feature_extractor'],
+                choices = ['Spectrogram'], 
+                help = 'Type of Feature Extractor used. It should take an audio waveform and output a sequence of vector (features).' 
+                )
             
-        self.parser.add_argument(
-            '--vgg_n_blocks', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['vgg_n_blocks'],
-            help = 'Number of blocks the VGG front-end block will have.\
-                Each block consists in two convolutional layers followed by a max pooling layer.',
-            )
+            self.parser.add_argument(
+                '--feature_extractor_output_vectors_dimension', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['feature_extractor_output_vectors_dimension'], 
+                help = 'Dimension of each vector that will be the output of the feature extractor (usually number of mels in mel-spectrogram).'
+                )
+            
+            self.parser.add_argument(
+                '--front_end', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['front_end'],
+                choices = ['VGG', 'Resnet34', 'Resnet101', 'NoneFrontEnd'], 
+                help = 'Type of Front-end used. \
+                    VGG for a N-block VGG architecture.'
+                )
+            
+            self.parser.add_argument(
+                '--vgg_n_blocks', 
+                type = int, 
+                help = 'Number of blocks the VGG front-end block will have.\
+                    Each block consists in two convolutional layers followed by a max pooling layer.',
+                )
 
-        self.parser.add_argument(
-            '--vgg_channels', 
-            nargs = '+',
-            type = int,
-            default = TRAIN_DEFAULT_SETTINGS['vgg_channels'],
-            help = 'Number of channels each VGG convolutional block will have. \
-                The number of channels must be passed in order and consisently with vgg_n_blocks.',
-            )
+            self.parser.add_argument(
+                '--vgg_channels', 
+                nargs = '+',
+                type = int,
+                help = 'Number of channels each VGG convolutional block will have. \
+                    The number of channels must be passed in order and consisently with vgg_n_blocks.',
+                )
+            
+            self.parser.add_argument(
+                '--adapter_output_vectors_dimension', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['adapter_output_vectors_dimension'], 
+                help = 'Dimension of each vector that will be the output of the adapter layer.',
+                )
+            
+            self.parser.add_argument(
+                '--seq_to_seq_method', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['seq_to_seq_method'], 
+                choices = ['SelfAttention', 'MultiHeadAttention', 'TransformerStacked', 'ReducedMultiHeadAttention'], 
+                help = 'Sequence to sequence component after the linear projection layer of the model.',
+                )
 
-        self.parser.add_argument(
-            '--seq_to_seq_method', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['seq_to_seq_method'], 
-            choices = ['SelfAttention', 'MultiHeadAttention', 'TransformerStacked'], 
-            help = 'Sequence to sequence component after the linear projection layer of the model.',
-            )
-        
-        self.parser.add_argument(
-            '--seq_to_one_method', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['seq_to_one_method'], 
-            choices = ['StatisticalPooling', 'AttentionPooling'], 
-            help = 'Type of pooling method applied to the output sequence to sequence component of the model.',
-            )
+            self.parser.add_argument(
+                '--seq_to_seq_heads_number', 
+                type = int, 
+                help = 'Number of heads for the seq_to_seq layer of the pooling component \
+                    (only for MHA based seq_to_seq options).',
+                )
 
-        self.parser.add_argument(
-            '--seq_to_seq_heads_number', 
-            type = int, 
-            help = 'Number of heads for the seq_to_seq layer of the pooling component \
-                (only for MHA based seq_to_seq options).',
-            )
+            self.parser.add_argument(
+                '--transformer_n_blocks', 
+                type = int, 
+                help = 'Number of transformer blocks to stack in the seq_to_seq component of the pooling. \
+                    (Only for seq_to_seq_method = TransformerStacked).',
+                )
 
-#         self.parser.add_argument(
-#             '--pooling_mask_prob', 
-#             type = float, 
-#             #default = TRAIN_DEFAULT_SETTINGS['pooling_mask_prob'], 
-#             help = 'Masking head drop probability. Only used for pooling_method = Double MHA',
-#             )
+            self.parser.add_argument(
+                '--transformer_expansion_coef', 
+                type = int, 
+                help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
+                    (Only for seq_to_seq_method = TransformerBlock)."
+                )
+            
+            self.parser.add_argument(
+                '--transformer_drop_out', 
+                type = float, 
+                help = 'Dropout probability to use in the feed forward component of the transformer block.\
+                    (Only for seq_to_seq_method = TransformerBlock).'
+                )
+            
+            self.parser.add_argument(
+                '--seq_to_one_method', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['seq_to_one_method'], 
+                choices = ['StatisticalPooling', 'AttentionPooling'], 
+                help = 'Type of pooling method applied to the output sequence to sequence component of the model.',
+                )
 
-#         self.parser.add_argument(
-#             '--pooling_positional_encoding', 
-#             action = argparse.BooleanOptionalAction,
-#             #default = TRAIN_DEFAULT_SETTINGS['pooling_positional_encoding'], 
-#             help = 'Wether to use positional encoding in the attention layer of the pooling component.'
-#             )
+            self.parser.add_argument(
+                '--number_classes', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['number_classes'],
+                help = "Number of classes to classify.",
+                )
 
-        self.parser.add_argument(
-            '--transformer_n_blocks', 
-            type = int, 
-            help = 'Number of transformer blocks to stack in the seq_to_seq component of the pooling. \
-                (Only for seq_to_seq_method = TransformerStacked).',
-            )
+        # Training Parameters
+        if True:
 
-        self.parser.add_argument(
-            '--transformer_expansion_coef', 
-            type = int, 
-            help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
-                (Only for seq_to_seq_method = TransformerBlock)."
-            )
-        
-        self.parser.add_argument(
-            '--transformer_drop_out', 
-            type = float, 
-            help = 'Dropout probability to use in the feed forward component of the transformer block.\
-                (Only for seq_to_seq_method = TransformerBlock).'
-            )
+            self.parser.add_argument(
+                '--max_epochs',
+                type = int,
+                default = TRAIN_DEFAULT_SETTINGS['max_epochs'],
+                help = 'Max number of epochs to train.',
+                )
 
-#         self.parser.add_argument(
-#             '--bottleneck_drop_out', 
-#             type = float, 
-#             default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
-#             help = 'Dropout probability to use in each layer of the final fully connected bottleneck.'
-#             )
-#         # ---------------------------------------------------------------------
+            self.parser.add_argument(
+                '--training_batch_size', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['training_batch_size'],
+                help = "Size of training batches.",
+                )
 
-#         # AMSoftmax Config
-#         # ---------------------------------------------------------------------
-#         self.parser.add_argument(
-#             '--scaling_factor', 
-#             type = float, 
-#             default = TRAIN_DEFAULT_SETTINGS['scaling_factor'], 
-#             help = 'Scaling factor of the AM-Softmax (referred as s in the AM-Softmax definition).'
-#             )
+            self.parser.add_argument(
+                '--evaluation_batch_size', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['evaluation_batch_size'],
+                help = "Size of evaluation batches.",
+                )
 
-#         self.parser.add_argument(
-#             '--margin_factor', 
-#             type = float, 
-#             default = TRAIN_DEFAULT_SETTINGS['margin_factor'],
-#             help = 'Margin factor of the AM-Softmax (referred as m in the AM-Softmax definition).'
-#             )
-        # ---------------------------------------------------------------------
+            self.parser.add_argument(
+                '--eval_and_save_best_model_every', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['eval_and_save_best_model_every'],
+                help = "The model is evaluated on train and validation sets and saved every eval_and_save_best_model_every steps. \
+                    Set to 0 if you don't want to execute this utility.",
+                )
+            
+            self.parser.add_argument(
+                '--print_training_info_every', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['print_training_info_every'],
+                help = "Training info is printed every print_training_info_every steps. \
+                    Set to 0 if you don't want to execute this utility.",
+                )
+
+            self.parser.add_argument(
+                '--early_stopping', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['early_stopping'],
+                help = "Training is stopped if there are early_stopping consectuive validations without improvement. \
+                    Set to 0 if you don't want to execute this utility.",
+                )
+
+            self.parser.add_argument(
+                '--load_checkpoint',
+                action = argparse.BooleanOptionalAction,
+                default = TRAIN_DEFAULT_SETTINGS['load_checkpoint'],
+                help = 'Set to True if you want to load a previous checkpoint and continue training from that point. \
+                    Loaded parameters will overwrite all inputted parameters.',
+                )
 
         # Optimization arguments
-        # ---------------------------------------------------------------------
-        self.parser.add_argument(
-            '--optimizer', 
-            type = str, 
-            choices = ['adam', 'sgd', 'rmsprop'], 
-            default = TRAIN_DEFAULT_SETTINGS['optimizer'],
-            )
+        if True:
+            
+            self.parser.add_argument(
+                '--optimizer', 
+                type = str, 
+                choices = ['adam', 'sgd', 'rmsprop'], 
+                default = TRAIN_DEFAULT_SETTINGS['optimizer'],
+                )
 
-        self.parser.add_argument(
-            '--learning_rate', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['learning_rate'],
-            )
+            self.parser.add_argument(
+                '--learning_rate', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['learning_rate'],
+                )
 
-        self.parser.add_argument(
-            '--weight_decay', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['weight_decay'],
-            )
-        # ---------------------------------------------------------------------
-
-        # Data Augmentation arguments
-        # ---------------------------------------------------------------------
-
-        self.parser.add_argument(
-            '--training_augmentation_prob', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['training_augmentation_prob'],
-            help = 'Probability of applying data augmentation to each file. Set to 0 if not augmentation is desired.'
-            )
-
-        self.parser.add_argument(
-            '--evaluation_augmentation_prob', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['evaluation_augmentation_prob'],
-            help = 'Probability of applying data augmentation to each file. Set to 0 if not augmentation is desired.'
-            )
-
-        self.parser.add_argument(
-            '--augmentation_noises_labels_path', 
-            type = str, 
-            help = '.' # TODO complete
-            )
-        
-        self.parser.add_argument(
-            '--augmentation_noises_directory', 
-            type = str,
-            help = 'Optional additional directory to prepend to the augmentation_labels_path paths.',
-            )
-
-        self.parser.add_argument(
-            '--augmentation_rirs_labels_path', 
-            type = str, 
-            help = '.' # TODO complete
-            )
-        
-        self.parser.add_argument(
-            '--augmentation_rirs_directory', 
-            type = str, 
-            help = 'Optional additional directory to prepend to the rirs_labels_path paths.',
-            )
-
-        self.parser.add_argument(
-            '--augmentation_window_size_secs', 
-            type = float, 
-            help = '.' # TODO complete
-            )
-        
-        self.parser.add_argument(
-            "--use_weights_and_biases", 
-            action = argparse.BooleanOptionalAction,
-            default = TRAIN_DEFAULT_SETTINGS['use_weights_and_biases'],
-            help = "Use weights and Biases.",
-            )
-        # ---------------------------------------------------------------------
+            self.parser.add_argument(
+                '--weight_decay', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['weight_decay'],
+                )
+            
+            self.parser.add_argument(
+                '--update_optimizer_every', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['update_optimizer_every'],
+                help = "Some optimizer parameters will be updated every update_optimizer_every consecutive validations without improvement. \
+                    Set to 0 if you don't want to execute this utility.",
+                )
 
         # Verbosity and debug Parameters
-        # ---------------------------------------------------------------------
-#         self.parser.add_argument(
-#             "--verbose", 
-#             action = argparse.BooleanOptionalAction,
-#             default = TRAIN_DEFAULT_SETTINGS['verbose'],
-#             help = "Increase output verbosity.",
-#             )
+        if True:
+            
+            self.parser.add_argument(
+                "--use_weights_and_biases", 
+                action = argparse.BooleanOptionalAction,
+                default = TRAIN_DEFAULT_SETTINGS['use_weights_and_biases'],
+                help = "Use weights and Biases.",
+                )
 
 
     def main(self):

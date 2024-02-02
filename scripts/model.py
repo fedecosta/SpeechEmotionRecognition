@@ -1,7 +1,30 @@
+import logging
 from torch import nn
-from front_end import VGG, Resnet34, Resnet101
-from poolings import SelfAttention, MultiHeadAttention, TransformerStacked
+from feature_extractor import FeatureExtractor
+from front_end import VGG, Resnet34, Resnet101, NoneFrontEnd
+from poolings import SelfAttention, MultiHeadAttention, TransformerStacked, ReducedMultiHeadAttention
 from poolings import StatisticalPooling, AttentionPooling
+
+# ---------------------------------------------------------------------
+# Logging
+
+# Set logging config
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%y-%m-%d %H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
+# ---------------------------------------------------------------------
 
 if False:
     import torch
@@ -18,22 +41,17 @@ class Classifier(nn.Module):
         super().__init__()
      
         self.device = device
+        self.init_feature_extractor(parameters)
         self.init_front_end(parameters)   
         self.init_adapter_layer(parameters)
         self.init_pooling_component(parameters, device)
         self.init_classifier_layer(parameters)
-
-        if False:
-            
-            self.__initFullyConnectedBlock(parameters)
-            
-            self.am_softmax_layer = AMSoftmax(
-                parameters.embedding_size, 
-                parameters.number_speakers, 
-                s = parameters.scaling_factor, 
-                m = parameters.margin_factor, 
-                )
     
+
+    def init_feature_extractor(self, parameters):
+
+        self.feature_extractor = FeatureExtractor(parameters)
+
 
     def init_front_end(self, parameters):
 
@@ -44,7 +62,7 @@ class Classifier(nn.Module):
                 
             # Calculate the size of the hidden state vectors (output of the front-end)
             self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
-                parameters.front_end_input_vectors_dimension, 
+                parameters.feature_extractor_output_vectors_dimension, 
                 )
 
         elif parameters.front_end == 'Resnet34':
@@ -56,7 +74,7 @@ class Classifier(nn.Module):
                 
             # Calculate the size of the hidden state vectors (output of the front-end)
             self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
-                parameters.front_end_input_vectors_dimension, 
+                parameters.feature_extractor_output_vectors_dimension, 
                 256, # HACK set as parameter?
                 )
         
@@ -67,54 +85,87 @@ class Classifier(nn.Module):
                 
             # Calculate the size of the hidden state vectors (output of the front-end)
             self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
-                parameters.front_end_input_vectors_dimension, 
+                parameters.feature_extractor_output_vectors_dimension, 
                 256,
                 )
 
-            
- 
+        elif parameters.front_end == 'NoneFrontEnd':
+
+            # Set the front-end component that will take the spectrogram and generate complex features
+            self.front_end = NoneFrontEnd()
+                
+            # Calculate the size of the hidden state vectors (output of the front-end)
+            self.front_end_output_vectors_dimension = self.front_end.get_output_vectors_dimension(
+                parameters.feature_extractor_output_vectors_dimension, 
+                )
+        
+        else:
+            raise Exception('No Front End choice found.')  
+        
 
     def init_adapter_layer(self, parameters):
 
-        self.adapter_layer = nn.Linear(self.front_end_output_vectors_dimension, parameters.pooling_input_output_dimension)
+        self.adapter_layer = nn.Linear(self.front_end_output_vectors_dimension, parameters.adapter_output_vectors_dimension)
 
     
     def init_seq_to_seq_layer(self, parameters):
         
             self.seq_to_seq_method = parameters.seq_to_seq_method
+            self.seq_to_seq_input_vectors_dimension = parameters.adapter_output_vectors_dimension
+
+            # HACK ReducedMultiHeadAttention seq to seq input and output dimensions don't match
+            if self.seq_to_seq_method == 'ReducedMultiHeadAttention':
+                self.seq_to_seq_output_vectors_dimension = self.seq_to_seq_input_vectors_dimension // parameters.seq_to_seq_heads_number
+            else:
+                self.seq_to_seq_output_vectors_dimension = self.seq_to_seq_input_vectors_dimension
 
             if self.seq_to_seq_method == 'SelfAttention':
                 self.seq_to_seq_layer = SelfAttention()
 
             elif self.seq_to_seq_method == 'MultiHeadAttention':
                 self.seq_to_seq_layer = MultiHeadAttention(
-                    emb_in = parameters.pooling_input_output_dimension,
+                    emb_in = self.seq_to_seq_input_vectors_dimension,
                     heads = parameters.seq_to_seq_heads_number,
                 )
 
             elif self.seq_to_seq_method == 'TransformerStacked':
                 self.seq_to_seq_layer = TransformerStacked(
-                    emb_in = parameters.pooling_input_output_dimension,
+                    emb_in = self.seq_to_seq_input_vectors_dimension,
                     n_blocks = parameters.transformer_n_blocks,
                     expansion_coef = parameters.transformer_expansion_coef,
                     drop_out_p = parameters.transformer_drop_out,
                     heads = parameters.seq_to_seq_heads_number,
                 )
+            
+            elif self.seq_to_seq_method == 'ReducedMultiHeadAttention':
+                self.seq_to_seq_layer = ReducedMultiHeadAttention(
+                    encoder_size = self.seq_to_seq_input_vectors_dimension,
+                    heads_number = parameters.seq_to_seq_heads_number,
+                )
+
+            else:
+                raise Exception('No Seq to Seq choice found.')  
     
 
     def init_seq_to_one_layer(self, parameters):
 
             self.seq_to_one_method = parameters.seq_to_one_method
+            self.seq_to_one_input_vectors_dimension = self.seq_to_seq_output_vectors_dimension
+            self.seq_to_one_output_vectors_dimension = self.seq_to_one_input_vectors_dimension
 
             if self.seq_to_one_method == 'StatisticalPooling':
                 self.seq_to_one_layer = StatisticalPooling(
-                    emb_in = parameters.pooling_input_output_dimension,
-                )
+                        emb_in = self.seq_to_one_input_vectors_dimension,
+                    )
 
             elif self.seq_to_one_method == 'AttentionPooling':
                 self.seq_to_one_layer = AttentionPooling(
-                    emb_in = parameters.pooling_input_output_dimension,
+                    emb_in = self.seq_to_one_input_vectors_dimension,
                 )
+            
+            else:
+                raise Exception('No Seq to One choice found.') 
+            
     
     def init_pooling_component(self, parameters, device):    
 
@@ -127,7 +178,7 @@ class Classifier(nn.Module):
 
     def init_classifier_layer(self, parameters):
 
-        self.classifier_layer = nn.Linear(parameters.pooling_input_output_dimension, parameters.number_classes)
+        self.classifier_layer = nn.Linear(self.seq_to_one_output_vectors_dimension, parameters.number_classes)
 
     
     def forward(self, input_tensor, label = None):
@@ -135,80 +186,26 @@ class Classifier(nn.Module):
         # Mandatory torch method
         # Set the net's forward pass
 
-        #print(f"input_tensor.size(): {input_tensor.size()}")
+        logger.debug(f"input_tensor.size(): {input_tensor.size()}")
 
-        encoder_output = self.front_end(input_tensor)
-        #print(f"encoder_output.size(): {encoder_output.size()}")
+        feature_extractor_output = self.feature_extractor(input_tensor)
+
+        encoder_output = self.front_end(feature_extractor_output)
+        logger.debug(f"encoder_output.size(): {encoder_output.size()}")
 
         adapter_output = self.adapter_layer(encoder_output)
-        #print(f"adapter_output.size(): {adapter_output.size()}")
+        logger.debug(f"adapter_output.size(): {adapter_output.size()}")
 
         seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
-        #print(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
+        logger.debug(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
 
         seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
-        #print(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
+        logger.debug(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
 
         # classifier_output are logits, softmax will be applied within the loss
         classifier_output = self.classifier_layer(seq_to_one_output)
-        #print(f"classifier_output.size(): {classifier_output.size()}")
+        logger.debug(f"classifier_output.size(): {classifier_output.size()}")
     
         return classifier_output
-    
-    
-    
-    
-    if False:
 
-        
-
-
-        def __initFullyConnectedBlock(self, parameters):
-
-            # Set the set of fully connected layers that will take the pooling context vector
-
-            # TODO abstract the FC component in a class with a forward method like the other components
-            # TODO Get also de RELUs in this class
-            # Should we batch norm and relu the last layer?
-
-            if self.pooling_method in ('SelfAttentionAttentionPooling', 'MultiHeadAttentionAttentionPooling', 'TransformerStackedAttentionPooling'):
-                # New Pooling classes output size is different from old poolings
-                self.fc1 = nn.Linear(parameters.pooling_output_size, parameters.embedding_size)
-            else:
-                self.fc1 = nn.Linear(self.hidden_states_dimension, parameters.embedding_size)
-            self.b1 = nn.BatchNorm1d(parameters.embedding_size)
-            self.fc2 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
-            self.b2 = nn.BatchNorm1d(parameters.embedding_size)
-            self.fc3 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
-            self.b3 = nn.BatchNorm1d(parameters.embedding_size)
-
-            self.drop_out = nn.Dropout(parameters.bottleneck_drop_out)
-            self.softmax = nn.Softmax(dim=1)
-
-
-        
-
-
-        # This method is used at test (or valid) time
-        def get_embedding(self, input_tensor):
-
-            # TODO should we use relu and bn in every layer?d
-
-            encoder_output = self.front_end(input_tensor)
-
-            # TODO seems that alignment is not used anywhere
-            embedding_0, alignment = self.poolingLayer(encoder_output)
-
-            # TODO should we use relu and bn in every layer?
-
-            # NO DROPOUT HERE
-            embedding_1 = self.fc1(embedding_0)
-            embedding_1 = F.relu(embedding_1)
-            embedding_1 = self.b1(embedding_1)
-
-            embedding_2 = self.fc2(embedding_1)
-            embedding_2 = F.relu(embedding_2)
-            embedding_2 = self.b2(embedding_2)
-        
-            return embedding_2 
 

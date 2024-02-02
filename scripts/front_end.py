@@ -4,6 +4,25 @@ import numpy as np
 from collections import OrderedDict
     
 
+class NoneFrontEnd(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+    
+
+    def forward(self, input_tensor):
+
+        return input_tensor
+
+
+    # Method used at model.py
+    def get_output_vectors_dimension(self, input_dimension):
+
+        # Compute the front-end output's vectors dimension
+
+        return input_dimension 
+    
+
 # TODO check Miquels VGG implementation
 class VGG(torch.nn.Module):
 
@@ -239,11 +258,11 @@ class Resnet34(Resnet):
 
     def __init__(self, kernel_size):
 
-        super(Resnet34, self).__init__(kernel_size, [3, 4, 6, 3])
+        super().__init__(kernel_size, [3, 4, 6, 3])
 
 
 class Resnet101(Resnet):
 
     def __init__(self, kernel_size):
 
-        super(Resnet101, self).__init__(kernel_size, [3, 4, 23, 3])
+        super().__init__(kernel_size, [3, 4, 23, 3])

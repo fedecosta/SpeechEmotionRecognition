@@ -1,5 +1,7 @@
 # Imports
 import os
+import psutil
+import torch
 from settings import LABELS_TO_IDS
 # ---------------------------------------------------------------------
 if False:
@@ -73,32 +75,26 @@ def generate_model_name(params, start_datetime, wandb_run_id = None, wandb_run_n
         return model_name
 
 
+def get_memory_info(cpu = True, gpu = True):
 
-if False:
+    cpu_available_pctg, gpu_free = None, None
 
+    # CPU memory info
+    if cpu:
+        cpu_memory_info = dict(psutil.virtual_memory()._asdict())
+        cpu_total = cpu_memory_info["total"]
+        cpu_available = cpu_memory_info["available"]
+        cpu_available_pctg = cpu_available * 100 / cpu_total
 
-    def chkptsave(opt, model, optimizer, epoch, step, start_datetime):
-        ''' function to save the model and optimizer parameters '''
-        if torch.cuda.device_count() > 1:
-            checkpoint = {
-                'model': model.module.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'settings': opt,
-                'epoch': epoch,
-                'step':step}
+    # GPU memory info
+    if gpu:
+        if torch.cuda.is_available():
+            gpu_free, gpu_occupied = torch.cuda.mem_get_info()
+            gpu_free = gpu_free/1000000000
         else:
-            checkpoint = {
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'settings': opt,
-                'epoch': epoch,
-                'step':step}
+            gpu_free = None
 
-        end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
-        checkpoint['start_datetime'] = start_datetime
-        checkpoint['end_datetime'] = end_datetime
-
-        torch.save(checkpoint,'{}/{}_{}.chkpt'.format(opt.out_dir, opt.model_name, step))
+    return cpu_available_pctg, gpu_free
 
 
     

@@ -7,6 +7,7 @@ import copy
 from augmentation import DataAugmentator
 import random
 import logging
+import pandas as pd
 
 # ---------------------------------------------------------------------
 # Logging
@@ -42,26 +43,24 @@ class TrainDataset(data.Dataset):
         self.random_crop_secs = random_crop_secs
         self.random_crop_samples = int(self.random_crop_secs * self.sample_rate)
         self.num_samples = len(utterances_paths)
-        self.init_feature_extractor()
         if self.augmentation_prob > 0: self.init_data_augmentator()
 
-    
-    def init_feature_extractor(self):
 
-        self.spectogram_extractor = torchaudio.transforms.MelSpectrogram(
-            n_fft = 512,
-            win_length = int(self.sample_rate * 0.025),
-            hop_length = int(self.sample_rate * 0.01),
-            n_mels = self.parameters.front_end_input_vectors_dimension,
-            mel_scale = "slaney",
-            window_fn = torch.hamming_window,
-            f_max = self.sample_rate // 2,
-            center = False,
-            normalized = False,
-            norm = "slaney",
-        )
+    def get_classes_weights(self):
 
-    
+        dataset_labels = [path.strip().split('\t')[1] for path in self.utterances_paths]
+
+        weights_series = pd.Series(dataset_labels).value_counts(normalize = True, dropna = False)
+        weights_df = pd.DataFrame(weights_series).reset_index()
+        weights_df.columns = ["label", "weight"]
+        weights_df = weights_df.sort_values("label", ascending=True)
+        
+        weights = weights_df["weight"].to_list()
+        weights = [1/weight for weight in weights]
+        
+        return weights
+
+
     def init_data_augmentator(self):
 
         self.data_augmentator = DataAugmentator(
@@ -86,7 +85,7 @@ class TrainDataset(data.Dataset):
         return cropped_waveform
 
     
-    def get_feature_vector(self, utterance_path):
+    def get_waveform_vector(self, utterance_path):
 
         # By default, the resulting tensor object has dtype=torch.float32 and its value range is normalized within [-1.0, 1.0]!
         waveform, original_sample_rate = torchaudio.load(utterance_path)
@@ -122,12 +121,7 @@ class TrainDataset(data.Dataset):
             # HACK don't understand why, I have to do this slicing (which sample_audio_window does) to make dataloader work
             waveform =  waveform[:]
 
-        features = self.spectogram_extractor(waveform)
-
-        # It seems that the feature extractor's output spectrogram has mel bands as rows
-        features = features.transpose(0, 1)
-
-        return features
+        return waveform
 
     
     def __getitem__(self, index):
@@ -138,15 +132,15 @@ class TrainDataset(data.Dataset):
         # Each utterance_path is like: audio_path\tlabel
         utterance_tuple = self.utterances_paths[index].strip().split('\t')
 
-        logger.debug(f"utterance_tuple: {utterance_tuple}")
+        #logger.debug(f"utterance_tuple: {utterance_tuple}")
 
         utterance_path = utterance_tuple[0]
         utterance_label = utterance_tuple[1]
 
-        features = self.get_feature_vector(utterance_path)
+        waveform = self.get_waveform_vector(utterance_path)
         labels = np.array(int(utterance_label))
         
-        return features, labels
+        return waveform, labels
     
 
     def __len__(self):
