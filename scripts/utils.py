@@ -2,7 +2,6 @@
 import os
 import psutil
 import torch
-from settings import LABELS_TO_IDS
 # ---------------------------------------------------------------------
 if False:
     
@@ -13,7 +12,7 @@ if False:
     import psutil
 # ---------------------------------------------------------------------
 
-def format_training_labels(labels_path, prepend_directory = None, header = False):
+def format_training_labels(labels_path, labels_to_ids, prepend_directory = None, header = False):
         
     '''Format training type labels.'''
 
@@ -39,7 +38,7 @@ def format_training_labels(labels_path, prepend_directory = None, header = False
 
         # We will assign each label a number using a fixed dictionary
         label = labels_line.split("\t")[1].replace("\n", "")
-        label = LABELS_TO_IDS[label]
+        label = labels_to_ids[label]
 
         # Prepend optional additional directory to the labels paths (but first checks if file exists)
         if prepend_directory is not None:
@@ -63,7 +62,9 @@ def generate_model_name(params, start_datetime, wandb_run_id = None, wandb_run_n
         formatted_datetime = start_datetime.replace(':', '_').replace(' ', '_').replace('-', '_')
         name_components.append(formatted_datetime)
 
+        name_components.append(params.feature_extractor)
         name_components.append(params.front_end)
+        name_components.append(params.adapter)
         name_components.append(params.seq_to_seq_method)
         name_components.append(params.seq_to_one_method)
         if wandb_run_id: name_components.append(wandb_run_id)

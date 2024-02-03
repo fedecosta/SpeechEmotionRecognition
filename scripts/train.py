@@ -18,7 +18,7 @@ import wandb
 from data import TrainDataset
 from model import Classifier
 from utils import format_training_labels, generate_model_name, get_memory_info
-from settings import TRAIN_DEFAULT_SETTINGS
+from settings import TRAIN_DEFAULT_SETTINGS, LABELS_TO_IDS, LABELS_REDUCED_TO_IDS
 
 # ---------------------------------------------------------------------
 
@@ -150,7 +150,7 @@ class Trainer:
         
         self.params = input_params
 
-        self.params.model_architecture_name = f"{self.params.front_end}_{self.params.seq_to_seq_method}_{self.params.seq_to_one_method}"
+        self.params.model_architecture_name = f"{self.params.feature_extractor}_{self.params.front_end}_{self.params.adapter}_{self.params.seq_to_seq_method}_{self.params.seq_to_one_method}"
 
         if self.params.use_weights_and_biases:
             self.params.model_name = generate_model_name(
@@ -203,6 +203,7 @@ class Trainer:
 
         return format_training_labels(
             labels_path = self.params.train_labels_path,
+            labels_to_ids = LABELS_REDUCED_TO_IDS,
             prepend_directory = self.params.train_data_dir,
             header = True,
         )
@@ -212,6 +213,7 @@ class Trainer:
 
         return format_training_labels(
             labels_path = self.params.validation_labels_path,
+            labels_to_ids = LABELS_REDUCED_TO_IDS,
             prepend_directory = self.params.validation_data_dir,
             header = True,
         )
@@ -375,9 +377,15 @@ class Trainer:
         logger.info("Loading the loss function...")
 
         # The nn.CrossEntropyLoss() criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class
-        self.loss_function = nn.CrossEntropyLoss(
-            weight = self.training_dataset_classes_weights,
-        )
+
+        if self.params.weighted_loss:
+            logger.info("Using weighted loss function...")
+            self.loss_function = nn.CrossEntropyLoss(
+                weight = self.training_dataset_classes_weights,
+            )
+        else:
+            logger.info("Using unweighted loss function...")
+            self.loss_function = nn.CrossEntropyLoss()
 
         logger.info("Loss function loaded.")
 
@@ -1091,7 +1099,7 @@ class ArgsParser:
                 '--feature_extractor', 
                 type = str, 
                 default = TRAIN_DEFAULT_SETTINGS['feature_extractor'],
-                choices = ['Spectrogram'], 
+                choices = ['SpectrogramExtractor', 'WavLMExtractor'], 
                 help = 'Type of Feature Extractor used. It should take an audio waveform and output a sequence of vector (features).' 
                 )
             
@@ -1127,6 +1135,14 @@ class ArgsParser:
                 )
             
             self.parser.add_argument(
+                '--adapter', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['adapter'],
+                choices = ['NoneAdapter', 'LinearAdapter', 'NonLinearAdapter'], 
+                help = 'Type of adapter used.'
+                )
+            
+            self.parser.add_argument(
                 '--adapter_output_vectors_dimension', 
                 type = int, 
                 default = TRAIN_DEFAULT_SETTINGS['adapter_output_vectors_dimension'], 
@@ -1137,7 +1153,7 @@ class ArgsParser:
                 '--seq_to_seq_method', 
                 type = str, 
                 default = TRAIN_DEFAULT_SETTINGS['seq_to_seq_method'], 
-                choices = ['SelfAttention', 'MultiHeadAttention', 'TransformerStacked', 'ReducedMultiHeadAttention'], 
+                choices = ['NoneSeqToSeq', 'SelfAttention', 'MultiHeadAttention', 'TransformerStacked', 'ReducedMultiHeadAttention'], 
                 help = 'Sequence to sequence component after the linear projection layer of the model.',
                 )
 
@@ -1269,6 +1285,14 @@ class ArgsParser:
                 help = "Some optimizer parameters will be updated every update_optimizer_every consecutive validations without improvement. \
                     Set to 0 if you don't want to execute this utility.",
                 )
+            
+            self.parser.add_argument(
+                "--weighted_loss", 
+                action = argparse.BooleanOptionalAction,
+                default = TRAIN_DEFAULT_SETTINGS['weighted_loss'],
+                help = "Set the weight parameter of the loss to a tensor representing the inverse frequency of each class.",
+                )
+
 
         # Verbosity and debug Parameters
         if True:

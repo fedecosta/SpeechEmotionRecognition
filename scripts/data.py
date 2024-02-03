@@ -57,6 +57,8 @@ class TrainDataset(data.Dataset):
         
         weights = weights_df["weight"].to_list()
         weights = [1/weight for weight in weights]
+
+        logger.info(f"classes_weights: {weights}")
         
         return weights
 

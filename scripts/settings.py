@@ -11,6 +11,17 @@ LABELS_TO_IDS = {
     "f": 9,
 }
 
+LABELS_REDUCED_TO_IDS = {
+    "h": 0,
+    "a": 1,
+    "c": 2,
+    "s": 3,
+    "u": 4,
+    "d": 5,
+    "f": 6,
+    "n": 7,
+    }
+
 TRAIN_DEFAULT_SETTINGS = {
     'train_labels_path' : './labels/training_labels.tsv',
     'validation_labels_path' : './labels/development_labels.tsv',
@@ -23,9 +34,10 @@ TRAIN_DEFAULT_SETTINGS = {
     'training_augmentation_prob' : 0.75,
     'evaluation_augmentation_prob' : 0,
     'augmentation_window_size_secs' : 2.0,
-    'feature_extractor': 'Spectrogram',
+    'feature_extractor': 'SpectrogramExtractor',
     'feature_extractor_output_vectors_dimension' : 80,
     'front_end' : 'Resnet34',
+    'adapter': 'LinearAdapter',
     'adapter_output_vectors_dimension' : 64,
     'seq_to_seq_method' : 'SelfAttention',
     'seq_to_one_method' : 'StatisticalPooling',
@@ -41,6 +53,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'learning_rate' : 0.0001,
     'weight_decay' : 0.001,
     'update_optimizer_every' : 10,
+    'weighted_loss' : True,
     'use_weights_and_biases' : False,
 }
 

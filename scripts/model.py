@@ -1,8 +1,9 @@
 import logging
 from torch import nn
-from feature_extractor import FeatureExtractor
+from feature_extractor import SpectrogramExtractor, WavLMExtractor
 from front_end import VGG, Resnet34, Resnet101, NoneFrontEnd
-from poolings import SelfAttention, MultiHeadAttention, TransformerStacked, ReducedMultiHeadAttention
+from adapter import NoneAdapter, LinearAdapter, NonLinearAdapter
+from poolings import NoneSeqToSeq, SelfAttention, MultiHeadAttention, TransformerStacked, ReducedMultiHeadAttention
 from poolings import StatisticalPooling, AttentionPooling
 
 # ---------------------------------------------------------------------
@@ -42,6 +43,7 @@ class Classifier(nn.Module):
      
         self.device = device
         self.init_feature_extractor(parameters)
+        #self.init_utility_layer(parameters)
         self.init_front_end(parameters)   
         self.init_adapter_layer(parameters)
         self.init_pooling_component(parameters, device)
@@ -50,9 +52,19 @@ class Classifier(nn.Module):
 
     def init_feature_extractor(self, parameters):
 
-        self.feature_extractor = FeatureExtractor(parameters)
+        if parameters.feature_extractor == 'SpectrogramExtractor':
+            self.feature_extractor = SpectrogramExtractor(parameters)
+        elif parameters.feature_extractor == 'WavLMExtractor':
+            self.feature_extractor = WavLMExtractor(parameters)
+        else:
+            raise Exception('No Feature Extractor choice found.') 
 
 
+    def init_utility_layer(self, parameters):
+
+        self.drop_out = nn.Dropout(0) # HACK
+    
+    
     def init_front_end(self, parameters):
 
         if parameters.front_end == 'VGG':
@@ -104,8 +116,16 @@ class Classifier(nn.Module):
         
 
     def init_adapter_layer(self, parameters):
+        NoneAdapter, LinearAdapter, NonLinearAdapter
 
-        self.adapter_layer = nn.Linear(self.front_end_output_vectors_dimension, parameters.adapter_output_vectors_dimension)
+        if parameters.adapter == 'NoneAdapter':
+            self.adapter_layer = NoneAdapter()
+        elif parameters.adapter == 'LinearAdapter':
+            self.adapter_layer = LinearAdapter(self.front_end_output_vectors_dimension, parameters.adapter_output_vectors_dimension)
+        elif parameters.adapter == 'NonLinearAdapter':
+            self.adapter_layer = NonLinearAdapter(self.front_end_output_vectors_dimension, parameters.adapter_output_vectors_dimension)
+        else:
+            raise Exception('No Adapter choice found.') 
 
     
     def init_seq_to_seq_layer(self, parameters):
@@ -119,7 +139,10 @@ class Classifier(nn.Module):
             else:
                 self.seq_to_seq_output_vectors_dimension = self.seq_to_seq_input_vectors_dimension
 
-            if self.seq_to_seq_method == 'SelfAttention':
+            if self.seq_to_seq_method == 'NoneSeqToSeq':
+                self.seq_to_seq_layer = NoneSeqToSeq()
+            
+            elif self.seq_to_seq_method == 'SelfAttention':
                 self.seq_to_seq_layer = SelfAttention()
 
             elif self.seq_to_seq_method == 'MultiHeadAttention':
@@ -178,7 +201,19 @@ class Classifier(nn.Module):
 
     def init_classifier_layer(self, parameters):
 
-        self.classifier_layer = nn.Linear(self.seq_to_one_output_vectors_dimension, parameters.number_classes)
+        self.classifier_layer = nn.Sequential(
+            nn.LayerNorm(self.seq_to_one_output_vectors_dimension),
+            nn.Linear(self.seq_to_one_output_vectors_dimension, 20),
+            nn.ReLU(),
+            nn.LayerNorm(20),
+            nn.Linear(20, 20),
+            nn.ReLU(),
+            nn.LayerNorm(20),
+            nn.Linear(20, 20),
+            nn.ReLU(),
+            nn.LayerNorm(20),
+            nn.Linear(20, parameters.number_classes),
+        )
 
     
     def forward(self, input_tensor, label = None):

@@ -23,7 +23,7 @@ python scripts/train.py \
 	--seq_to_seq_method 'ReducedMultiHeadAttention' \
 	--seq_to_seq_heads_number 8 \
 	--seq_to_one_method 'AttentionPooling' \
-	--max_epochs 100 \
+	--max_epochs 50 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
 	--eval_and_save_best_model_every 2000 \

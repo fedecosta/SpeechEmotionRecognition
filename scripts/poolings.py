@@ -31,6 +31,17 @@ logger.addHandler(logger_stream_handler)
 
 # 1 - Sequence to sequence components (sequence to sequence blocks, the input dimension is the same than the output dimension)
 
+class NoneSeqToSeq(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+    
+
+    def forward(self, input_tensor):
+
+        return input_tensor
+    
+
 class SelfAttention(nn.Module):
 
     """
