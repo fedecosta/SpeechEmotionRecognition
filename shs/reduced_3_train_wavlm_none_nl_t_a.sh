@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_reduced_1
+#SBATCH --job-name=train_reduced_3
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -16,17 +16,18 @@ python scripts/train.py \
 	--training_random_crop_secs 3.5 \
 	--evaluation_random_crop_secs 3.5 \
 	--augmentation_window_size_secs 3.5 \
-	--training_augmentation_prob 0 \
+	--training_augmentation_prob 0.75 \
 	--evaluation_augmentation_prob 0 \
-	--feature_extractor 'SpectrogramExtractor' \
-	--feature_extractor_output_vectors_dimension 80 \
-	--front_end 'VGG' \
-	--vgg_n_blocks 3 \
-	--vgg_channels 128 256 512 \
+	--feature_extractor 'WavLMExtractor' \
+	--feature_extractor_output_vectors_dimension 768 \
+	--front_end 'NoneFrontEnd' \
 	--adapter 'NonLinearAdapter' \
-	--adapter_output_vectors_dimension 1024 \
-	--seq_to_seq_method 'ReducedMultiHeadAttention' \
-	--seq_to_seq_heads_number 8 \
+	--adapter_output_vectors_dimension 256 \
+	--seq_to_seq_method 'TransformerStacked' \
+	--seq_to_seq_heads_number 4 \
+	--transformer_n_blocks 2 \
+	--transformer_drop_out 0 \
+	--transformer_expansion_coef 4 \
 	--seq_to_one_method 'AttentionPooling' \
 	--max_epochs 200 \
 	--training_batch_size 32 \

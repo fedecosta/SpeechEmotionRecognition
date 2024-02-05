@@ -42,27 +42,25 @@ class Classifier(nn.Module):
         super().__init__()
      
         self.device = device
-        self.init_feature_extractor(parameters)
-        #self.init_utility_layer(parameters)
+        self.init_feature_extractor(parameters, device)
         self.init_front_end(parameters)   
         self.init_adapter_layer(parameters)
         self.init_pooling_component(parameters, device)
         self.init_classifier_layer(parameters)
     
 
-    def init_feature_extractor(self, parameters):
+    def init_feature_extractor(self, parameters, device):
 
         if parameters.feature_extractor == 'SpectrogramExtractor':
             self.feature_extractor = SpectrogramExtractor(parameters)
         elif parameters.feature_extractor == 'WavLMExtractor':
-            self.feature_extractor = WavLMExtractor(parameters)
+            self.feature_extractor = WavLMExtractor(parameters, device)
         else:
             raise Exception('No Feature Extractor choice found.') 
-
-
-    def init_utility_layer(self, parameters):
-
-        self.drop_out = nn.Dropout(0) # HACK
+        
+        for name, parameter in self.feature_extractor.named_parameters():
+            logger.debug(f"Setting {name} to requires_grad = False")
+            parameter.requires_grad = False
     
     
     def init_front_end(self, parameters):
@@ -203,16 +201,22 @@ class Classifier(nn.Module):
 
         self.classifier_layer = nn.Sequential(
             nn.LayerNorm(self.seq_to_one_output_vectors_dimension),
-            nn.Linear(self.seq_to_one_output_vectors_dimension, 20),
+            nn.Linear(self.seq_to_one_output_vectors_dimension, 126),
             nn.ReLU(),
-            nn.LayerNorm(20),
-            nn.Linear(20, 20),
+            nn.LayerNorm(126),
+            nn.Linear(126, 126),
             nn.ReLU(),
-            nn.LayerNorm(20),
-            nn.Linear(20, 20),
+            nn.LayerNorm(126),
+            nn.Linear(126, 126),
             nn.ReLU(),
-            nn.LayerNorm(20),
-            nn.Linear(20, parameters.number_classes),
+            nn.LayerNorm(126),
+            nn.Linear(126, 126),
+            nn.ReLU(),
+            nn.LayerNorm(126),
+            nn.Linear(126, 126),
+            nn.ReLU(),
+            nn.LayerNorm(126),
+            nn.Linear(126, parameters.number_classes),
         )
 
     

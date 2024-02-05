@@ -345,15 +345,17 @@ class Trainer:
         parms_dict = {}
         for name, parameter in self.net.named_parameters():
 
-            layer_name = name.split(".")[1]
+            layer_name = name.split(".")[0]
             if layer_name not in parms_dict.keys():
                 parms_dict[layer_name] = 0
+
+            logger.debug(f"name: {name}, layer_name: {layer_name}")
 
             if not parameter.requires_grad:
                 continue
             trainable_params = parameter.numel()
 
-            #logger.info(f"{name}: {trainable_params}")
+            logger.debug(f"{name} is trainable: {trainable_params}")
             
             parms_dict[layer_name] = parms_dict[layer_name] + trainable_params
             
@@ -406,18 +408,21 @@ class Trainer:
         if self.params.optimizer == 'adam':
             self.optimizer = optim.Adam(
                 self.net.parameters(), 
+                #filter(lambda p: p.requires_grad, self.net.parameters()),
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
         if self.params.optimizer == 'sgd':
             self.optimizer = optim.SGD(
                 self.net.parameters(), 
+                #filter(lambda p: p.requires_grad, self.net.parameters()),
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
         if self.params.optimizer == 'rmsprop':
             self.optimizer = optim.RMSprop(
                 self.net.parameters(), 
+                #filter(lambda p: p.requires_grad, self.net.parameters()), 
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
@@ -733,7 +738,7 @@ class Trainer:
 
                 for param_group in self.optimizer.param_groups:
 
-                    param_group['lr'] = param_group['lr'] * 0.5 # FIX hardcoded value  
+                    param_group['lr'] = param_group['lr'] * 0.9 # FIX hardcoded value  
                     
                     logger.info(f"New learning rate: {param_group['lr']}")
                 
