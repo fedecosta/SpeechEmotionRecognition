@@ -325,6 +325,10 @@ class ReducedMultiHeadAttention(nn.Module):
     def getHeadsContextVectors(self,ht):    
 
         batch_size = ht.size(0)
+        logger.debug(f"ht.size(): {ht.size()}")
+        logger.debug(f"batch_size: {batch_size}")
+        logger.debug(f"self.head_size: {self.head_size}")
+        logger.debug(f"self.heads_number: {self.heads_number}")
         key = ht.view(batch_size*ht.size(1), self.heads_number, self.head_size)
         value = ht.view(batch_size,-1,self.heads_number, self.head_size)
         headsContextVectors, self.alignment = innerKeyValueAttention(self.query, key, value)

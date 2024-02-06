@@ -1,6 +1,7 @@
 import logging
 import torchaudio
 import torch
+from torch import nn
 
 # ---------------------------------------------------------------------
 # Logging
@@ -23,7 +24,7 @@ logger_stream_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stream_handler)
 # ---------------------------------------------------------------------
 
-class SpectrogramExtractor(torch.nn.Module):
+class SpectrogramExtractor(nn.Module):
 
     def __init__(self, input_parameters):
         super().__init__()
@@ -67,30 +68,39 @@ class SpectrogramExtractor(torch.nn.Module):
         return features
 
 
-class WavLMExtractor(torch.nn.Module):
+class WavLMExtractor(nn.Module):
 
-    def __init__(self, input_parameters, device):
+    def __init__(self, input_parameters, num_layers = 12):
         super().__init__()
 
-        self.device = device
-        self.init_feature_extractor(input_parameters)
-        
+        #self.device = device
+        self.num_layers = num_layers # Layers of the Transformer of the WavLM model (BASE: 12)
+        self.init_layers_weights()
+        self.init_feature_extractor()
 
-    def init_feature_extractor(self, params):
+
+    def init_feature_extractor(self):
 
         bundle = torchaudio.pipelines.WAVLM_BASE
-        self.feature_extractor = bundle.get_model().to(self.device)
+        self.feature_extractor = bundle.get_model()
+
     
+    def init_layers_weights(self):
+
+        self.layer_weights = nn.Parameter(nn.functional.softmax((torch.ones(self.num_layers) / self.num_layers), dim=-1))
+        
 
     def extract_features(self, waveform):
             
         features, _ = self.feature_extractor.extract_features(waveform)
-
-        level = 0
-        level_features = features[level]
         # level_features dims: (#B, #num_vectors, #dim_vectors = 768)
+        
+        hidden_states = torch.stack(features, dim=1)
 
-        return level_features
+        averaged_hidden_states = (hidden_states * self.layer_weights.view(-1, 1, 1)).sum(dim=1)
+        #averaged_hidden_states = features[-1]
+
+        return averaged_hidden_states
 
 
     def __call__(self, waveform):

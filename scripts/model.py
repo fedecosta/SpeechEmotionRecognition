@@ -42,25 +42,27 @@ class Classifier(nn.Module):
         super().__init__()
      
         self.device = device
-        self.init_feature_extractor(parameters, device)
+        self.init_feature_extractor(parameters)
         self.init_front_end(parameters)   
         self.init_adapter_layer(parameters)
-        self.init_pooling_component(parameters, device)
+        self.init_pooling_component(parameters)
         self.init_classifier_layer(parameters)
     
 
-    def init_feature_extractor(self, parameters, device):
+    def init_feature_extractor(self, parameters):
 
         if parameters.feature_extractor == 'SpectrogramExtractor':
             self.feature_extractor = SpectrogramExtractor(parameters)
         elif parameters.feature_extractor == 'WavLMExtractor':
-            self.feature_extractor = WavLMExtractor(parameters, device)
+            self.feature_extractor = WavLMExtractor(parameters)
         else:
             raise Exception('No Feature Extractor choice found.') 
         
         for name, parameter in self.feature_extractor.named_parameters():
-            logger.debug(f"Setting {name} to requires_grad = False")
-            parameter.requires_grad = False
+            # Freeze all wavLM parameters except layers weights
+            if name != "layer_weights":
+                logger.info(f"Setting {name} to requires_grad = False")
+                parameter.requires_grad = False
     
     
     def init_front_end(self, parameters):
@@ -118,6 +120,8 @@ class Classifier(nn.Module):
 
         if parameters.adapter == 'NoneAdapter':
             self.adapter_layer = NoneAdapter()
+            parameters.adapter_output_vectors_dimension = self.front_end_output_vectors_dimension
+
         elif parameters.adapter == 'LinearAdapter':
             self.adapter_layer = LinearAdapter(self.front_end_output_vectors_dimension, parameters.adapter_output_vectors_dimension)
         elif parameters.adapter == 'NonLinearAdapter':
@@ -188,7 +192,7 @@ class Classifier(nn.Module):
                 raise Exception('No Seq to One choice found.') 
             
     
-    def init_pooling_component(self, parameters, device):    
+    def init_pooling_component(self, parameters):    
 
         # Set the pooling component that will take the front-end features and summarize them in a context vector
         # This component applies first a sequence to sequence layer and then a sequence to one layer.
@@ -228,6 +232,7 @@ class Classifier(nn.Module):
         logger.debug(f"input_tensor.size(): {input_tensor.size()}")
 
         feature_extractor_output = self.feature_extractor(input_tensor)
+        logger.debug(f"feature_extractor_output.size(): {feature_extractor_output.size()}")
 
         encoder_output = self.front_end(feature_extractor_output)
         logger.debug(f"encoder_output.size(): {encoder_output.size()}")

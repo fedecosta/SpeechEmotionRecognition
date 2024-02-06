@@ -738,7 +738,7 @@ class Trainer:
 
                 for param_group in self.optimizer.param_groups:
 
-                    param_group['lr'] = param_group['lr'] * 0.9 # FIX hardcoded value  
+                    param_group['lr'] = param_group['lr'] * self.params.learning_rate_multiplier
                     
                     logger.info(f"New learning rate: {param_group['lr']}")
                 
@@ -1150,7 +1150,6 @@ class ArgsParser:
             self.parser.add_argument(
                 '--adapter_output_vectors_dimension', 
                 type = int, 
-                default = TRAIN_DEFAULT_SETTINGS['adapter_output_vectors_dimension'], 
                 help = 'Dimension of each vector that will be the output of the adapter layer.',
                 )
             
@@ -1275,6 +1274,12 @@ class ArgsParser:
                 '--learning_rate', 
                 type = float, 
                 default = TRAIN_DEFAULT_SETTINGS['learning_rate'],
+                )
+            
+            self.parser.add_argument(
+                '--learning_rate_multiplier', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['learning_rate_multiplier'],
                 )
 
             self.parser.add_argument(
