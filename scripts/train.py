@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch import optim
-from torcheval.metrics.functional import multiclass_f1_score
+from sklearn.metrics import f1_score
 from torchsummary import summary
 import wandb
 
@@ -365,11 +365,6 @@ class Trainer:
             logger.info(f"{layer_name}: {parms_dict[layer_name]}")
 
         #summary(self.net, (150, self.params.feature_extractor_output_vectors_dimension))
-        
-        # Calculate trainable parameters (to estimate model complexity)
-        #self.total_trainable_params = sum(
-        #    p.numel() for p in self.net.parameters() if p.requires_grad
-        #)
 
         logger.info(f"Network loaded, total_trainable_params: {self.total_trainable_params}")
 
@@ -535,12 +530,11 @@ class Trainer:
                 self.info_mem(logger_level = "DEBUG")
                 final_labels = torch.cat(tensors = (final_labels, label))
                 self.info_mem(logger_level = "DEBUG")
-
-            metric_score = multiclass_f1_score(
-                input = final_predictions, 
-                target  = final_labels, 
-                num_classes = self.params.number_classes,
-                average = 'micro', # TODO think what method is best to define
+                
+            metric_score = f1_score(
+                y_true = np.argmax(final_predictions, axis = 1), 
+                y_pred = final_labels, 
+                average='macro',
                 )
             
             self.info_mem(logger_level = "DEBUG")
@@ -585,11 +579,10 @@ class Trainer:
                 final_predictions = torch.cat(tensors = (final_predictions, prediction))
                 final_labels = torch.cat(tensors = (final_labels, label))
 
-            metric_score = multiclass_f1_score(
-                input = final_predictions, 
-                target  = final_labels, 
-                num_classes = self.params.number_classes,
-                average = 'micro', # TODO think what method is best to define
+            metric_score = f1_score(
+                y_true = np.argmax(final_predictions, axis = 1), 
+                y_pred = final_labels, 
+                average='macro',
                 )
             
             self.validation_eval_metric = metric_score

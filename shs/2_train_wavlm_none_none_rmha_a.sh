@@ -28,11 +28,11 @@ python scripts/train.py \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 900 \
+	--eval_and_save_best_model_every 800 \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--number_classes 8 \
 	--weighted_loss \
-	--learning_rate_multiplier 0.9 \
+	--learning_rate_multiplier 0.5 \
 	--use_weights_and_biases

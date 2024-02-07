@@ -50,7 +50,7 @@ class TrainDataset(data.Dataset):
 
         dataset_labels = [path.strip().split('\t')[1] for path in self.utterances_paths]
 
-        weights_series = pd.Series(dataset_labels).value_counts(normalize = True, dropna = False)
+        weights_series = pd.Series(dataset_labels).value_counts(normalize = False, dropna = False)
         weights_df = pd.DataFrame(weights_series).reset_index()
         weights_df.columns = ["label", "weight"]
         weights_df = weights_df.sort_values("label", ascending=True)
