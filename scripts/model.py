@@ -204,22 +204,22 @@ class Classifier(nn.Module):
     def init_classifier_layer(self, parameters):
 
         self.classifier_layer = nn.Sequential(
-            nn.LayerNorm(self.seq_to_one_output_vectors_dimension),
+            #nn.LayerNorm(self.seq_to_one_output_vectors_dimension),
             nn.Linear(self.seq_to_one_output_vectors_dimension, 512),
-            nn.ReLU(),
             nn.LayerNorm(512),
+            nn.ReLU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
             nn.LayerNorm(512),
+            nn.ReLU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
             nn.LayerNorm(512),
+            nn.ReLU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
             nn.LayerNorm(512),
+            nn.ReLU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
             nn.LayerNorm(512),
+            nn.ReLU(),
             nn.Linear(512, parameters.number_classes),
         )
 

@@ -72,8 +72,23 @@ class TrainDataset(data.Dataset):
             self.parameters.augmentation_rirs_directory,
             self.parameters.augmentation_rirs_labels_path,
             self.parameters.augmentation_window_size_secs,
+            self.parameters.augmentation_effects,
         )
 
+    
+    def pad_waveform(self, waveform, padding_type, random_crop_samples):
+
+        if padding_type == "zero_pad":
+            pad_left = max(0, self.random_crop_samples - waveform.shape[-1])
+            padded_waveform = torch.nn.functional.pad(waveform, (pad_left, 0), mode = "constant")
+        elif padding_type == "repetition_pad":
+            necessary_repetitions = int(np.ceil(random_crop_samples / waveform.size(-1)))
+            padded_waveform = waveform.repeat(necessary_repetitions)
+        else:
+            raise Exception('No padding choice found.') 
+        
+        return padded_waveform
+        
     
     def sample_audio_window(self, waveform, random_crop_samples):
 
@@ -109,12 +124,13 @@ class TrainDataset(data.Dataset):
         # librosa has an option to force to mono, torchaudio does not
         waveform = waveform.squeeze(0)
 
-        # We make padding to allow cropping longer segments
-        # (If not, we can only crop at most the duration of the shortest audio)
-        pad_left = max(0, self.random_crop_samples - waveform.shape[-1])
-        waveform = torch.nn.functional.pad(waveform, (pad_left, 0), mode = "constant")
-
         if self.random_crop_secs > 0:
+            
+            # We make padding to allow cropping longer segments
+            # (If not, we can only crop at most the duration of the shortest audio)
+            if self.random_crop_samples > waveform.size(-1):
+                waveform = self.pad_waveform(waveform, self.parameters.padding_type, self.random_crop_samples)
+            
             # TODO torchaudio.load has frame_offset and num_frames params. Providing num_frames and frame_offset arguments is more efficient
             waveform = self.sample_audio_window(
                 waveform, 

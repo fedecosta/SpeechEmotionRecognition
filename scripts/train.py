@@ -402,22 +402,22 @@ class Trainer:
 
         if self.params.optimizer == 'adam':
             self.optimizer = optim.Adam(
-                self.net.parameters(), 
-                #filter(lambda p: p.requires_grad, self.net.parameters()),
+                #self.net.parameters(), 
+                filter(lambda p: p.requires_grad, self.net.parameters()),
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
         if self.params.optimizer == 'sgd':
             self.optimizer = optim.SGD(
-                self.net.parameters(), 
-                #filter(lambda p: p.requires_grad, self.net.parameters()),
+                #self.net.parameters(), 
+                filter(lambda p: p.requires_grad, self.net.parameters()),
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
         if self.params.optimizer == 'rmsprop':
             self.optimizer = optim.RMSprop(
-                self.net.parameters(), 
-                #filter(lambda p: p.requires_grad, self.net.parameters()), 
+                #self.net.parameters(), 
+                filter(lambda p: p.requires_grad, self.net.parameters()), 
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
@@ -1064,6 +1064,14 @@ class ArgsParser:
                 default = TRAIN_DEFAULT_SETTINGS['num_workers'],
                 help = 'num_workers to be used by the data loader.'
                 )
+            
+            self.parser.add_argument(
+                '--padding_type', 
+                type = str, 
+                choices = ["zero_pad", "repetition_pad"],
+                help = 'Type of padding to apply to the audios. \
+                    zero_pad does zero left padding, repetition_pad repeats the audio.'
+                )
         
         # Data Augmentation arguments
         if True:
@@ -1088,6 +1096,14 @@ class ArgsParser:
                 default = TRAIN_DEFAULT_SETTINGS['augmentation_window_size_secs'],
                 help = 'Cut the audio with augmentation_window_size_secs length at a random starting point. \
                     If 0, the full audio is loaded.'
+                )
+
+            self.parser.add_argument(
+                '--augmentation_effects', 
+                type = str, 
+                nargs = '+',
+                choices = ["apply_speed_perturbation", "apply_reverb", "add_background_noise"],
+                help = 'Effects to augment the data. One or many can be choosen.'
                 )
         
         # Network Parameters

@@ -34,17 +34,19 @@ class DataAugmentator:
         augmentation_rirs_directory,
         augmentation_rirs_labels_path,
         augmentation_window_size_secs,
+        augmentation_effects,
     ):
         
         self.augmentation_directory = augmentation_noises_directory # Background noises directory
         self.rirs_directory = augmentation_rirs_directory # RIRs directory
         self.window_size_secs = augmentation_window_size_secs
+        self.augmentation_effects = augmentation_effects
 
         self.create_augmentation_list(augmentation_noises_labels_path)
         self.create_rir_list(augmentation_rirs_labels_path) 
 
         # TODO move to settings
-        self.EFFECTS = ["apply_speed_perturbation", "apply_reverb", "add_background_noise"]           
+        #self.EFFECTS = ["apply_speed_perturbation", "apply_reverb", "add_background_noise"]           
         self.SPEEDS = ["0.9", "1.1"] # If 1 is an option, no augmentation is done!
         self.SNR_NOISE_RANGE = [0, 15]
         self.SNR_SPEECH_RANGE = [10, 30]
@@ -199,7 +201,7 @@ class DataAugmentator:
     
     def augment(self, audio, sample_rate):
         
-        effect = random.choice(self.EFFECTS)
+        effect = random.choice(self.augmentation_effects)
 
         logger.debug(f"Data augmentation {effect} is going to be applied...")
         

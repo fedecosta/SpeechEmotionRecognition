@@ -21,8 +21,8 @@ class LinearAdapter(torch.nn.Module):
         self.input_vectors_dimension = input_vectors_dimension
         self.output_vectors_dimension = output_vectors_dimension
         self.adapter_layer =  nn.Sequential(
-            nn.LayerNorm(self.input_vectors_dimension),
             nn.Linear(self.input_vectors_dimension, self.output_vectors_dimension),
+            nn.LayerNorm(self.input_vectors_dimension),
         )
     
     
@@ -41,8 +41,8 @@ class NonLinearAdapter(torch.nn.Module):
         self.input_vectors_dimension = input_vectors_dimension
         self.output_vectors_dimension = output_vectors_dimension
         self.adapter_layer =  nn.Sequential(
-            nn.LayerNorm(self.input_vectors_dimension),
             nn.Linear(self.input_vectors_dimension, self.output_vectors_dimension),
+            nn.LayerNorm(self.input_vectors_dimension),
             nn.ReLU(),
         )
     
