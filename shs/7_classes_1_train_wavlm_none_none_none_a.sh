@@ -14,9 +14,9 @@ python scripts/train.py \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
 	--training_random_crop_secs 5.5 \
-	--evaluation_random_crop_secs 5.5 \
+	--evaluation_random_crop_secs 0 \
 	--augmentation_window_size_secs 5.5 \
-	--training_augmentation_prob 0 \
+	--training_augmentation_prob 0.5 \
 	--evaluation_augmentation_prob 0 \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
 	--feature_extractor 'WavLMExtractor' \
@@ -33,6 +33,7 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
+	--classifier_drop_out 0.2 \
 	--number_classes 7 \
 	--weighted_loss \
 	--learning_rate_multiplier 0.9 \

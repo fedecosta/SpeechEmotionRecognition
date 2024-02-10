@@ -203,23 +203,31 @@ class Classifier(nn.Module):
 
     def init_classifier_layer(self, parameters):
 
+        self.classifier_drop_out = nn.Dropout(parameters.classifier_drop_out)
+        
         self.classifier_layer = nn.Sequential(
             #nn.LayerNorm(self.seq_to_one_output_vectors_dimension),
+            self.classifier_drop_out(),,
             nn.Linear(self.seq_to_one_output_vectors_dimension, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
+            self.classifier_drop_out()
             nn.Linear(512, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
+            self.classifier_drop_out(),
             nn.Linear(512, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
+            self.classifier_drop_out(),
             nn.Linear(512, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
+            self.classifier_drop_out(),
             nn.Linear(512, 512),
             nn.LayerNorm(512),
             nn.ReLU(),
+            self.classifier_drop_out(),
             nn.Linear(512, parameters.number_classes),
         )
 

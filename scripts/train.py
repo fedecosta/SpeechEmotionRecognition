@@ -1207,6 +1207,13 @@ class ArgsParser:
                 )
 
             self.parser.add_argument(
+                '--classifier_drop_out', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['classifier_drop_out'],
+                help = 'Dropout probability to use in the classfifer component.'
+                )
+            
+            self.parser.add_argument(
                 '--number_classes', 
                 type = int, 
                 default = TRAIN_DEFAULT_SETTINGS['number_classes'],

@@ -39,6 +39,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'adapter': 'NoneAdapter',
     'seq_to_seq_method' : 'NoneSeqToSeq',
     'seq_to_one_method' : 'StatisticalPooling',
+    'classifier_drop_out' : 0,
     'number_classes' : 10,
     'max_epochs' : 100,
     'training_batch_size' : 64,
