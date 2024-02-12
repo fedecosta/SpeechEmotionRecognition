@@ -1207,9 +1207,9 @@ class ArgsParser:
                 )
 
             self.parser.add_argument(
-                '--classifier_drop_out', 
+                '--classifier_layer_drop_out', 
                 type = float, 
-                default = TRAIN_DEFAULT_SETTINGS['classifier_drop_out'],
+                default = TRAIN_DEFAULT_SETTINGS['classifier_layer_drop_out'],
                 help = 'Dropout probability to use in the classfifer component.'
                 )
             

@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_7_classes_1
+#SBATCH --job-name=train_7_classes_3
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -23,7 +23,11 @@ python scripts/train.py \
 	--feature_extractor_output_vectors_dimension 768 \
 	--front_end 'NoneFrontEnd' \
 	--adapter 'NoneAdapter' \
-	--seq_to_seq_method 'NoneSeqToSeq' \
+	--seq_to_seq_method 'TransformerStacked' \
+	--seq_to_seq_heads_number 1 \
+	--transformer_n_blocks 1 \
+	--transformer_expansion_coef 4 \
+	--transformer_drop_out 0.1 \
 	--seq_to_one_method 'AttentionPooling' \
 	--max_epochs 200 \
 	--training_batch_size 32 \
@@ -33,7 +37,7 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
-	--classifier_layer_drop_out 0.4 \
+	--classifier_layer_drop_out 0.2 \
 	--number_classes 7 \
 	--weighted_loss \
 	--learning_rate_multiplier 0.9 \

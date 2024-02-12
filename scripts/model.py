@@ -5,6 +5,7 @@ from front_end import VGG, Resnet34, Resnet101, NoneFrontEnd
 from adapter import NoneAdapter, LinearAdapter, NonLinearAdapter
 from poolings import NoneSeqToSeq, SelfAttention, MultiHeadAttention, TransformerStacked, ReducedMultiHeadAttention
 from poolings import StatisticalPooling, AttentionPooling
+from classifier_layer import ClassifierLayer
 
 # ---------------------------------------------------------------------
 # Logging
@@ -60,6 +61,7 @@ class Classifier(nn.Module):
         
         for name, parameter in self.feature_extractor.named_parameters():
             # Freeze all wavLM parameters except layers weights
+            #if name != "layer_weights" and "transformer.layers.11" not in name:
             if name != "layer_weights":
                 logger.info(f"Setting {name} to requires_grad = False")
                 parameter.requires_grad = False
@@ -203,35 +205,11 @@ class Classifier(nn.Module):
 
     def init_classifier_layer(self, parameters):
 
-        self.classifier_drop_out = nn.Dropout(parameters.classifier_drop_out)
+        self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
         
-        self.classifier_layer = nn.Sequential(
-            #nn.LayerNorm(self.seq_to_one_output_vectors_dimension),
-            self.classifier_drop_out(),,
-            nn.Linear(self.seq_to_one_output_vectors_dimension, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            self.classifier_drop_out()
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            self.classifier_drop_out(),
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            self.classifier_drop_out(),
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            self.classifier_drop_out(),
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            self.classifier_drop_out(),
-            nn.Linear(512, parameters.number_classes),
-        )
+        self.classifier_layer = ClassifierLayer(parameters, self.classifier_layer_input_vectors_dimension)
 
-    
+
     def forward(self, input_tensor, label = None):
 
         # Mandatory torch method
