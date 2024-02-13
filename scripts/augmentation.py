@@ -206,7 +206,10 @@ class DataAugmentator:
         logger.debug(f"Data augmentation {effect} is going to be applied...")
         
         # getattr(self, effect) is equivalent to apply self.effect(audio, sample_rate)
-        return getattr(self, effect)(audio, sample_rate)
+
+        augmented_waveform = getattr(self, effect)(audio, sample_rate)
+
+        return augmented_waveform
 
     
     def __call__(self, audio, sample_rate):

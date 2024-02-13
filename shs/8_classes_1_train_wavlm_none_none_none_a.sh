@@ -5,12 +5,12 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_7_classes_1
+#SBATCH --job-name=train_8_classes_1
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
-	--train_labels_path './labels/training_labels_reduced_7_classes.tsv' \
-	--validation_labels_path './labels/development_labels_reduced_7_classes.tsv' \
+	--train_labels_path './labels/training_labels_reduced_8_classes.tsv' \
+	--validation_labels_path './labels/development_labels_reduced_8_classes.tsv' \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
 	--training_random_crop_secs 5.5 \
@@ -34,7 +34,7 @@ python scripts/train.py \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
 	--classifier_layer_drop_out 0 \
-	--number_classes 7 \
+	--number_classes 8 \
 	--weighted_loss \
 	--learning_rate_multiplier 0.9 \
 	--use_weights_and_biases

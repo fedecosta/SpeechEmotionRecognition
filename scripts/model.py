@@ -60,8 +60,11 @@ class Classifier(nn.Module):
             raise Exception('No Feature Extractor choice found.') 
         
         for name, parameter in self.feature_extractor.named_parameters():
-            # Freeze all wavLM parameters except layers weights
+            
+            # Freeze all wavLM parameters except layers weights and the last layer
             #if name != "layer_weights" and "transformer.layers.11" not in name:
+            
+            # Freeze all wavLM parameters except layers weights
             if name != "layer_weights":
                 logger.info(f"Setting {name} to requires_grad = False")
                 parameter.requires_grad = False
