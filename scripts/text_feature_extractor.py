@@ -3,6 +3,7 @@ import torchaudio
 #from torchaudio.pipelines import EMFORMER_RNNT_BASE_LIBRISPEECH
 import torch
 from torch import nn
+import os
 
 # ---------------------------------------------------------------------
 # Logging
@@ -25,6 +26,32 @@ logger_stream_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stream_handler)
 # ---------------------------------------------------------------------
 
+
+class ASRDummy(nn.Module):
+
+    # https://pytorch.org/audio/main/generated/torchaudio.pipelines.RNNTBundle.html#torchaudio.pipelines.RNNTBundle
+
+    def __init__(self):
+        super().__init__()
+
+
+    def transcript(self, utterance_path):
+
+        file_name = utterance_path.split("/")[-1].replace(".wav", ".txt")
+        transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Transcripts/Transcripts", file_name)
+        
+        with open(transcription_path, 'r') as data_labels_file:
+            transcription = data_labels_file.readlines()
+        
+        # HACK
+        if len(transcription) != 1: 
+            logger.debug(f"utterance_path: {utterance_path}")
+            transcription = "..."
+        else:
+            transcription = transcription[0]
+
+        return transcription
+    
 
 class ASRModel(nn.Module):
 

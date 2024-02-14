@@ -11,10 +11,36 @@ from settings import LABELS_REDUCED_TO_IDS, TRAIN_DEFAULT_SETTINGS
 import argparse
 from torch.utils.data import DataLoader
 from text_feature_extractor import TextBERTExtractor
+import os
 
-default_params_dict = TRAIN_DEFAULT_SETTINGS
-params = argparse.Namespace(**default_params_dict)
-print('text_feature_extractor' in params)
+
+train_labels_lines = format_training_labels(
+    labels_path = './labels/training_labels_reduced_7_classes.tsv',
+    labels_to_ids = LABELS_REDUCED_TO_IDS,
+    prepend_directory = '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files',
+    header = True,
+)
+
+for line_num, line in enumerate(train_labels_lines):
+
+    utterance_path = train_labels_lines[0].split("\t")[0]
+
+    file_name = utterance_path.split("/")[-1]
+    transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Transcripts/Transcripts", file_name)
+    transcription_path = transcription_path.replace(".wav", ".txt")
+
+    with open(transcription_path, 'r') as data_labels_file:
+        transcription = data_labels_file.readlines()
+
+    if len(transcription) != 1:
+        print(f"line {line_num}: {line}")
+        break
+
+    transcription = transcription[0]
+
+    #tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
+    #indexed_tokens = tokenizer.encode(transcription, add_special_tokens=True)
+    #tokens_tensor = torch.tensor(indexed_tokens)
 
 
 

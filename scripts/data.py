@@ -8,7 +8,7 @@ from augmentation import DataAugmentator
 import random
 import logging
 import pandas as pd
-from text_feature_extractor import ASRModel
+from text_feature_extractor import ASRModel, ASRDummy
 
 # ---------------------------------------------------------------------
 # Logging
@@ -82,7 +82,7 @@ class TrainDataset(data.Dataset):
 
         # HACK we need to transcribe into this class because the ASR model has a problem implementing batches transcriptions
         
-        self.transcriptor = ASRModel()
+        self.transcriptor = ASRDummy()
         self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
     
 
@@ -184,7 +184,10 @@ class TrainDataset(data.Dataset):
 
         # We transcribe before processing the waveform
         if self.parameters.text_feature_extractor != 'NoneTextExtractor':
-            transcription = self.get_transcription(waveform)
+            # HACK using dataset transcriptions as a quick test
+            #transcription = self.get_transcription(waveform)
+            transcription = self.get_transcription(utterance_path)
+
             transcription_tokens = self.get_transcription_tokens(transcription)
 
         waveform = self.process_waveform(waveform, original_sample_rate)
