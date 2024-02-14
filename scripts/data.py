@@ -8,6 +8,7 @@ from augmentation import DataAugmentator
 import random
 import logging
 import pandas as pd
+from text_feature_extractor import ASRModel
 
 # ---------------------------------------------------------------------
 # Logging
@@ -44,6 +45,7 @@ class TrainDataset(data.Dataset):
         self.random_crop_samples = int(self.random_crop_secs * self.sample_rate)
         self.num_samples = len(utterances_paths)
         if self.augmentation_prob > 0: self.init_data_augmentator()
+        if self.parameters.text_feature_extractor != 'NoneTextExtractor': self.init_transcriptor()
 
 
     def get_classes_weights(self):
@@ -75,7 +77,15 @@ class TrainDataset(data.Dataset):
             self.parameters.augmentation_effects,
         )
 
+
+    def init_transcriptor(self):
+
+        # HACK we need to transcribe into this class because the ASR model has a problem implementing batches transcriptions
+        
+        self.transcriptor = ASRModel()
+        self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
     
+
     def pad_waveform(self, waveform, padding_type, random_crop_samples):
 
         if padding_type == "zero_pad":
@@ -103,10 +113,7 @@ class TrainDataset(data.Dataset):
         return cropped_waveform
 
     
-    def get_waveform_vector(self, utterance_path):
-
-        # By default, the resulting tensor object has dtype=torch.float32 and its value range is normalized within [-1.0, 1.0]!
-        waveform, original_sample_rate = torchaudio.load(utterance_path)
+    def process_waveform(self, waveform, original_sample_rate):
 
         if original_sample_rate != self.sample_rate:
             waveform = torchaudio.functional.resample(
@@ -143,6 +150,22 @@ class TrainDataset(data.Dataset):
         return waveform
 
     
+    def get_transcription(self, waveform):
+
+        transcription = self.transcriptor.transcript(waveform)
+        
+        return transcription
+    
+
+    def get_transcription_tokens(self, transcription):
+
+        indexed_tokens = self.tokenizer.encode(transcription, add_special_tokens=True)
+        #tokens_tensor = torch.tensor([indexed_tokens])
+        tokens_tensor = torch.tensor(indexed_tokens)
+
+        return tokens_tensor
+
+
     def __getitem__(self, index):
 
         '''Generates one sample of data'''
@@ -156,10 +179,22 @@ class TrainDataset(data.Dataset):
         utterance_path = utterance_tuple[0]
         utterance_label = utterance_tuple[1]
 
-        waveform = self.get_waveform_vector(utterance_path)
-        labels = np.array(int(utterance_label))
+        # By default, the resulting tensor object has dtype=torch.float32 and its value range is normalized within [-1.0, 1.0]!
+        waveform, original_sample_rate = torchaudio.load(utterance_path)
+
+        # We transcribe before processing the waveform
+        if self.parameters.text_feature_extractor != 'NoneTextExtractor':
+            transcription = self.get_transcription(waveform)
+            transcription_tokens = self.get_transcription_tokens(transcription)
+
+        waveform = self.process_waveform(waveform, original_sample_rate)
         
-        return waveform, labels
+        labels = np.array(int(utterance_label))
+
+        if self.parameters.text_feature_extractor != 'NoneTextExtractor':
+            return waveform, labels, transcription_tokens
+        else:
+            return waveform, labels
     
 
     def __len__(self):

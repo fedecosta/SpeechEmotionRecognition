@@ -17,7 +17,7 @@ import wandb
 
 from data import TrainDataset
 from model import Classifier
-from utils import format_training_labels, generate_model_name, get_memory_info
+from utils import format_training_labels, generate_model_name, get_memory_info, pad_collate
 from settings import TRAIN_DEFAULT_SETTINGS, LABELS_TO_IDS, LABELS_REDUCED_TO_IDS
 
 # ---------------------------------------------------------------------
@@ -244,12 +244,20 @@ class Trainer:
         self.training_dataset_classes_weights = torch.tensor(self.training_dataset_classes_weights).float().to(self.device)
         
         # Load DataLoader params
-        data_loader_parameters = {
-            'batch_size': self.params.training_batch_size, 
-            'shuffle': True, # FIX hardcoded True
-            'num_workers': self.params.num_workers,
-            }
-        
+        if self.params.text_feature_extractor != 'NoneTextExtractor':
+            data_loader_parameters = {
+                'batch_size': self.params.training_batch_size, 
+                'shuffle': True, # FIX hardcoded True
+                'num_workers': self.params.num_workers,
+                'collate_fn': pad_collate,
+                }
+        else:
+            data_loader_parameters = {
+                'batch_size': self.params.training_batch_size, 
+                'shuffle': True, # FIX hardcoded True
+                'num_workers': self.params.num_workers,
+                }
+
         # TODO dont add to the class to get a lighter model?
         # Instanciate a DataLoader class
         self.training_generator = DataLoader(
@@ -284,13 +292,25 @@ class Trainer:
         # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
         self.set_evaluation_batch_size()
         
+        if self.params.text_feature_extractor != 'NoneTextExtractor':
+            data_loader_parameters = {
+                'batch_size': self.params.evaluation_batch_size, 
+                'shuffle': False,
+                'num_workers': self.params.num_workers,
+                'collate_fn': pad_collate,
+                }
+        else:
+            data_loader_parameters = {
+                'batch_size': self.params.evaluation_batch_size, 
+                'shuffle': False,
+                'num_workers': self.params.num_workers,
+                }
+        
         # TODO dont add to the class to get a lighter model?
         # Instanciate a DataLoader class
         self.evaluating_generator = DataLoader(
             validation_dataset, 
-            batch_size = self.params.evaluation_batch_size,
-            shuffle = False,
-            num_workers = self.params.num_workers,
+            **data_loader_parameters,
             )
 
         self.evaluation_total_batches = len(self.evaluating_generator)
@@ -341,6 +361,7 @@ class Trainer:
 
         logger.info(self.net)
 
+        # Display trainable parameters
         self.total_trainable_params = 0
         parms_dict = {}
         for name, parameter in self.net.named_parameters():
@@ -502,34 +523,43 @@ class Trainer:
 
         logger.info(f"Evaluating training task...")
 
-        self.info_mem(logger_level = "DEBUG")
-
         with torch.no_grad():
 
             # Switch torch to evaluation mode
             self.net.eval()
 
             final_predictions, final_labels = torch.tensor([]).to("cpu"), torch.tensor([]).to("cpu")
-            for batch_number, (input, label) in enumerate(self.training_generator):
+            for batch_number, batch_data in enumerate(self.training_generator):
 
                 if batch_number % 1000 == 0:
                     logger.info(f"Evaluating training task batch {batch_number} of {len(self.training_generator)}...")
 
-                self.info_mem(logger_level = "DEBUG")
+                if self.params.text_feature_extractor != 'NoneTextExtractor':
+                    input, label, transcription_tokens_padded, transcription_tokens_mask = batch_data      
+                else:
+                    input, label = batch_data
 
-                # Assign input and label to device
-                input, label = input.float().to("cpu"), label.long().to("cpu")
+                # Assign batch data to device
+                if self.params.text_feature_extractor != 'NoneTextExtractor':
+                    transcription_tokens_padded, transcription_tokens_mask = transcription_tokens_padded.long().to(self.device), transcription_tokens_mask.long().to(self.device)
+                input, label = input.float().to(self.device), label.long().to(self.device)
+
                 if batch_number == 0: logger.info(f"input.size(): {input.size()}")
-                self.info_mem(logger_level = "DEBUG")
-
+                
                 # Calculate prediction and loss
-                prediction  = self.net(input_tensor = input, label = label).to("cpu")
-                self.info_mem(logger_level = "DEBUG")
+                if self.params.text_feature_extractor != 'NoneTextExtractor':
+                    prediction  = self.net(
+                        input_tensor = input, 
+                        transcription_tokens_padded = transcription_tokens_padded,
+                        transcription_tokens_mask = transcription_tokens_mask,
+                        )
+                else:
+                    prediction  = self.net(input_tensor = input)
+                prediction = prediction.to("cpu")
+                label = label.to("cpu")
 
                 final_predictions = torch.cat(tensors = (final_predictions, prediction))
-                self.info_mem(logger_level = "DEBUG")
                 final_labels = torch.cat(tensors = (final_labels, label))
-                self.info_mem(logger_level = "DEBUG")
                 
             metric_score = f1_score(
                 y_true = np.argmax(final_predictions, axis = 1), 
@@ -537,21 +567,16 @@ class Trainer:
                 average='macro',
                 )
             
-            self.info_mem(logger_level = "DEBUG")
-            
             self.training_eval_metric = metric_score
 
             del final_predictions
             del final_labels
 
-            self.info_mem(logger_level = "DEBUG")
-
         # Return to torch training mode
         self.net.train()
 
         logger.info(f"Training task evaluated.")
-        logger.info(f"F1-score (micro) on training set: {self.training_eval_metric:.3f}")
-        self.info_mem(logger_level = "DEBUG")
+        logger.info(f"F1-score (macro) on training set: {self.training_eval_metric:.3f}")
 
 
     def evaluate_validation(self):
@@ -564,17 +589,34 @@ class Trainer:
             self.net.eval()
 
             final_predictions, final_labels = torch.tensor([]).to("cpu"), torch.tensor([]).to("cpu")
-            for batch_number, (input, label) in enumerate(self.evaluating_generator):
+            for batch_number, batch_data in enumerate(self.evaluating_generator):
 
                 if batch_number % 1000 == 0:
                     logger.info(f"Evaluating validation task batch {batch_number} of {len(self.evaluating_generator)}...")
 
-                # Assign input and label to device
+                if self.params.text_feature_extractor != 'NoneTextExtractor':
+                    input, label, transcription_tokens_padded, transcription_tokens_mask = batch_data      
+                else:
+                    input, label = batch_data
+
+                # Assign batch data to device
+                if self.params.text_feature_extractor != 'NoneTextExtractor':
+                    transcription_tokens_padded, transcription_tokens_mask = transcription_tokens_padded.long().to("cpu"), transcription_tokens_mask.long().to("cpu")
                 input, label = input.float().to("cpu"), label.long().to("cpu")
+                
                 if batch_number == 0: logger.info(f"input.size(): {input.size()}")
 
                 # Calculate prediction and loss
-                prediction  = self.net(input_tensor = input, label = label).to("cpu")
+                if self.params.text_feature_extractor != 'NoneTextExtractor':
+                    prediction  = self.net(
+                        input_tensor = input, 
+                        transcription_tokens_padded = transcription_tokens_padded,
+                        transcription_tokens_mask = transcription_tokens_mask,
+                        )
+                else:
+                    prediction  = self.net(input_tensor = input)
+                prediction = prediction.to("cpu")
+                label = label.to("cpu")
 
                 final_predictions = torch.cat(tensors = (final_predictions, prediction))
                 final_labels = torch.cat(tensors = (final_labels, label))
@@ -594,8 +636,7 @@ class Trainer:
         self.net.train()
 
         logger.info(f"Validation task evaluated.")
-        logger.info(f"F1-score (micro) on validation set: {self.validation_eval_metric:.3f}")
-        self.info_mem(logger_level = "DEBUG")
+        logger.info(f"F1-score (macro) on validation set: {self.validation_eval_metric:.3f}")
 
 
     def evaluate(self):
@@ -779,14 +820,36 @@ class Trainer:
         # Switch torch to training mode
         self.net.train()
 
-        for self.batch_number, (input, label) in enumerate(self.training_generator):
+        for self.batch_number, batch_data in enumerate(self.training_generator):
 
-            # Assign input and label to device
+            if self.params.text_feature_extractor != 'NoneTextExtractor':
+                input, label, transcription_tokens_padded, transcription_tokens_mask = batch_data  
+            else:
+                input, label = batch_data
+
+            #logger.info(f"input: {input}")
+            #logger.info(f"label: {label}")
+            #logger.info(f"transcription_tokens_padded: {transcription_tokens_padded}")
+            #logger.info(f"transcription_tokens_mask: {transcription_tokens_mask}")
+
+            # Assign batch data to device
+            if self.params.text_feature_extractor != 'NoneTextExtractor':
+                transcription_tokens_padded = transcription_tokens_padded.long().to(self.device)
+                transcription_tokens_mask = transcription_tokens_mask.long().to(self.device)
+    
             input, label = input.float().to(self.device), label.long().to(self.device)
+            
             if self.batch_number == 0: logger.info(f"input.size(): {input.size()}")
 
             # Calculate prediction and loss
-            prediction  = self.net(input_tensor = input, label = label)
+            if self.params.text_feature_extractor != 'NoneTextExtractor':
+                prediction  = self.net(
+                    input_tensor = input, 
+                    transcription_tokens_padded = transcription_tokens_padded,
+                    transcription_tokens_mask = transcription_tokens_mask,
+                    )
+            else:
+                prediction  = self.net(input_tensor = input)
 
             self.loss = self.loss_function(prediction, label)
             self.train_loss = self.loss.item()
@@ -1122,6 +1185,14 @@ class ArgsParser:
                 type = int, 
                 default = TRAIN_DEFAULT_SETTINGS['feature_extractor_output_vectors_dimension'], 
                 help = 'Dimension of each vector that will be the output of the feature extractor (usually number of mels in mel-spectrogram).'
+                )
+
+            self.parser.add_argument(
+                '--text_feature_extractor', 
+                type = str, 
+                default = TRAIN_DEFAULT_SETTINGS['text_feature_extractor'], 
+                choices = ['TextBERTExtractor', 'NoneTextExtractor'], 
+                help = 'Type of Text Feature Extractor used. It should take an audio waveform and output a sequence of vector (features).' 
                 )
             
             self.parser.add_argument(

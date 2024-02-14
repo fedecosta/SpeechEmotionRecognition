@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_7_classes_1
+#SBATCH --job-name=train_7_classes_5
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -21,7 +21,7 @@ python scripts/train.py \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
 	--feature_extractor 'WavLMExtractor' \
 	--feature_extractor_output_vectors_dimension 768 \
-	--text_feature_extractor 'NoneTextExtractor' \
+	--text_feature_extractor 'TextBERTExtractor' \
 	--front_end 'NoneFrontEnd' \
 	--adapter 'NoneAdapter' \
 	--seq_to_seq_method 'NoneSeqToSeq' \
@@ -29,8 +29,8 @@ python scripts/train.py \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 800 \
-	--print_training_info_every 100 \
+	--eval_and_save_best_model_every 50 \
+	--print_training_info_every 10 \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
@@ -38,4 +38,4 @@ python scripts/train.py \
 	--number_classes 7 \
 	--weighted_loss \
 	--learning_rate_multiplier 0.9 \
-	--use_weights_and_biases
+	--no-use_weights_and_biases

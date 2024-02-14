@@ -28,7 +28,7 @@ python scripts/train.py \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 800 \
+	--eval_and_save_best_model_every 200 \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--num_workers 4 \

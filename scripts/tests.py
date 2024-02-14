@@ -3,13 +3,82 @@ import torchaudio
 import torch
 from random import randint
 import pandas as pd
+import numpy as np
 from torcheval.metrics.functional import multiclass_f1_score
+from data import TrainDataset
+from utils import format_training_labels, pad_collate
+from settings import LABELS_REDUCED_TO_IDS, TRAIN_DEFAULT_SETTINGS
+import argparse
+from torch.utils.data import DataLoader
+from text_feature_extractor import TextBERTExtractor
 
-input = torch.tensor([0, 2, 1, 3])
-target = torch.tensor([0, 1, 2, 3])
-print(multiclass_f1_score(input, target, num_classes=4, average=None))
+default_params_dict = TRAIN_DEFAULT_SETTINGS
+params = argparse.Namespace(**default_params_dict)
+print('text_feature_extractor' in params)
 
 
+
+if False:
+
+    train_labels_lines = format_training_labels(
+        labels_path = './labels/training_labels_reduced_7_classes.tsv',
+        labels_to_ids = LABELS_REDUCED_TO_IDS,
+        prepend_directory = '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files',
+        header = True,
+    )
+
+    default_params_dict = TRAIN_DEFAULT_SETTINGS
+    params = argparse.Namespace(**default_params_dict)
+    params.padding_type = "repetition_pad"
+    params.text_feature_extractor = "TextBERTExtractor"
+    params.training_batch_size = 3
+
+    training_dataset = TrainDataset(
+        utterances_paths = train_labels_lines, 
+        input_parameters = params,
+        random_crop_secs = 5.5,
+        augmentation_prob = 0,
+        sample_rate = 16000,
+        )
+
+    if params.text_feature_extractor is not None:
+        data_loader_parameters = {
+            'batch_size': params.training_batch_size, 
+            'shuffle': True, # FIX hardcoded True
+            'num_workers': params.num_workers,
+            'collate_fn': pad_collate,
+        }
+    else:
+        data_loader_parameters = {
+            'batch_size': params.training_batch_size, 
+            'shuffle': True, # FIX hardcoded True
+            'num_workers': params.num_workers,
+        }
+
+    # Instanciate a DataLoader class
+    training_generator = DataLoader(
+        training_dataset, 
+        **data_loader_parameters,
+        )
+
+    #for batch_number, (input, label) in enumerate(training_generator):
+    for batch_number, (input, label, transcription_tokens, transcription_tokens_lens) in enumerate(training_generator):
+
+        # Assign input and label to device
+        print(f"batch_number: {batch_number}")
+        print(f"input: {input}")
+        print(f"label: {label}")
+        print(f"transcription_tokens_lens: {transcription_tokens_lens}")
+        #print(f"transcription_tokens: {transcription_tokens}")
+
+        text_feature_extractor = TextBERTExtractor()
+        max_len = max(transcription_tokens_lens)
+        padding_mask = [torch.nn.functional.pad(torch.tensor(torch.ones(len)), (0, max_len-len), mode = "constant", value = 0) for len in transcription_tokens_lens]
+        padding_mask = torch.tensor(np.array(padding_mask))
+        print(f"padding_mask: {padding_mask}")
+        text_feature_extractor_output = text_feature_extractor(transcription_tokens, padding_mask)
+        print(f"text_feature_extractor_output.size(): {text_feature_extractor_output.size()}")
+        break
 
 
 
@@ -21,7 +90,39 @@ print(multiclass_f1_score(input, target, num_classes=4, average=None))
 
 
 if False:
-    path = "/home/usuaris/veussd/federico.costa/datasets/data_augmentation/open_slr/slr_17/speech/us-gov/speech-us-gov-0249.wav"
+    from torch.nn.utils.rnn import pad_sequence
+    transcription_tokens = (
+        torch.tensor([ 101, 7994, 1146, 1397, 2106, 1105, 1122, 1125, 1176, 4674, 1104, 3697,1176, 2133, 1324,  102]), 
+        torch.tensor([  101, 12373,  3948,  1222,  1103,  2965,  1104,   187,  2328,  3491,5412,  1863,  1755,  1602,  1234,  1110,  1136,  1126,  8050,   102]), 
+        torch.tensor([  101,  1865,  1103,  9887,  1133,  1103,  5963,  1108, 24083,  1173,170, 22890,  1146,   170,  2046,  2560,  1131,  1865,  1103,  9887, 1133,  1103,   102]))
+
+    transcription_tokens_padded = pad_sequence(transcription_tokens, batch_first=True, padding_value=0)
+
+    print(transcription_tokens_padded)
+
+
+if False:
+    from text_feature_extractor import ASRModel, TextBERTExtractor
+    path = "/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files/MSP-PODCAST_4685_0031.wav"
+    waveform, sample_rate = torchaudio.load(path)
+    waveform = torch.cat([waveform, waveform])
+    print(f"waveform.size(): {waveform.size()}")
+
+    feature_extractor = TextBERTExtractor()
+    features = feature_extractor(waveform)
+    print(f"features.size(): {features.size()}")
+
+
+
+
+
+
+
+
+
+
+if False:
+    path = "MSP-PODCAST_4685_0031.wav"
     noise, noise_sample_rate = torchaudio.load(path)
 
 

@@ -1,15 +1,29 @@
 # Imports
 import os
+import logging
 import psutil
 import torch
+from torch.nn.utils.rnn import pad_sequence
+import numpy as np
 # ---------------------------------------------------------------------
-if False:
-    
-    import torch
-    from torch.nn import functional as F
-    import numpy as np
-    import datetime
-    import psutil
+# Logging
+
+# Set logging config
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%y-%m-%d %H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
 # ---------------------------------------------------------------------
 
 def format_training_labels(labels_path, labels_to_ids, prepend_directory = None, header = False):
@@ -98,4 +112,28 @@ def get_memory_info(cpu = True, gpu = True):
     return cpu_available_pctg, gpu_free
 
 
-    
+def pad_collate(batch_data):
+
+    input, label, transcription_tokens = zip(*batch_data)
+
+    # Input and labels processing
+
+    # input is a tuple of tensors and label is a tuple of np.arrays of len 1.
+    # we need to convert each of these to a tensor of arrays
+    input = torch.stack(input)
+    label = torch.tensor(np.array(label).flatten())
+
+    # Tokens processing
+
+    transcription_tokens_padded = pad_sequence(transcription_tokens, batch_first=True, padding_value=0)
+
+    # We are going to define padding masks tensors because of the following suggestion:
+    # We strongly recommend passing in an `attention_mask` since your input_ids may be padded. 
+    # See https://huggingface.co/docs/transformers/troubleshooting#incorrect-output-when-padding-tokens-arent-masked.
+
+    transcription_tokens_lens = [len(x) for x in transcription_tokens]
+    max_len = max(transcription_tokens_lens)
+    transcription_tokens_mask = [torch.nn.functional.pad(torch.ones(len), (0, max_len-len), mode = "constant", value = 0) for len in transcription_tokens_lens]
+    transcription_tokens_mask = torch.tensor(np.array(transcription_tokens_mask))
+
+    return input, label, transcription_tokens_padded, transcription_tokens_mask

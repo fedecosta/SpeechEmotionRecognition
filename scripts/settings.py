@@ -35,6 +35,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'augmentation_window_size_secs' : 2.0,
     'feature_extractor': 'SpectrogramExtractor',
     'feature_extractor_output_vectors_dimension' : 80,
+    'text_feature_extractor' : 'NoneTextExtractor',
     'front_end' : 'NoneFrontEnd',
     'adapter': 'NoneAdapter',
     'seq_to_seq_method' : 'NoneSeqToSeq',

@@ -1,6 +1,8 @@
 import logging
 from torch import nn
+import torch
 from feature_extractor import SpectrogramExtractor, WavLMExtractor
+from text_feature_extractor import TextBERTExtractor
 from front_end import VGG, Resnet34, Resnet101, NoneFrontEnd
 from adapter import NoneAdapter, LinearAdapter, NonLinearAdapter
 from poolings import NoneSeqToSeq, SelfAttention, MultiHeadAttention, TransformerStacked, ReducedMultiHeadAttention
@@ -44,6 +46,7 @@ class Classifier(nn.Module):
      
         self.device = device
         self.init_feature_extractor(parameters)
+        self.init_text_feature_extractor(parameters)
         self.init_front_end(parameters)   
         self.init_adapter_layer(parameters)
         self.init_pooling_component(parameters)
@@ -68,6 +71,24 @@ class Classifier(nn.Module):
             if name != "layer_weights":
                 logger.info(f"Setting {name} to requires_grad = False")
                 parameter.requires_grad = False
+
+    
+    def init_text_feature_extractor(self, parameters):
+
+        if parameters.text_feature_extractor == 'TextBERTExtractor':
+            self.text_feature_extractor = TextBERTExtractor()
+
+            for name, parameter in self.text_feature_extractor.named_parameters():
+                # TODO allow to train some parameters
+                # Freeze all BERT parameters except layers weights and the last layer
+                #if name != "layer_weights" and "transformer.layers.11" not in name:
+                # Freeze all BERT parameters except layers weights
+                if True:#name != "layer_weights":
+                    logger.info(f"Setting {name} to requires_grad = False")
+                    parameter.requires_grad = False
+        else:
+            self.text_feature_extractor = None
+            logger.info('No Text Feature Extractor selected.')
     
     
     def init_front_end(self, parameters):
@@ -208,17 +229,26 @@ class Classifier(nn.Module):
 
     def init_classifier_layer(self, parameters):
 
-        self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
+        if self.text_feature_extractor:
+            # In this case we will concatenate text and acoustic pooled vectors
+            # HACK
+            self.classifier_layer_input_vectors_dimension = 2 * self.seq_to_one_output_vectors_dimension
+        else:
+            self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
+        
+        logger.debug(f"self.classifier_layer_input_vectors_dimension: {self.classifier_layer_input_vectors_dimension}")
         
         self.classifier_layer = ClassifierLayer(parameters, self.classifier_layer_input_vectors_dimension)
 
 
-    def forward(self, input_tensor, label = None):
+    def forward(self, input_tensor, transcription_tokens_padded = None, transcription_tokens_mask = None):
 
         # Mandatory torch method
         # Set the net's forward pass
 
         logger.debug(f"input_tensor.size(): {input_tensor.size()}")
+
+        # Acoustic-based components
 
         feature_extractor_output = self.feature_extractor(input_tensor)
         logger.debug(f"feature_extractor_output.size(): {feature_extractor_output.size()}")
@@ -235,8 +265,20 @@ class Classifier(nn.Module):
         seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
         logger.debug(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
 
+        # Text-based components
+
+        if self.text_feature_extractor:
+            text_feature_extractor_output = self.text_feature_extractor(transcription_tokens_padded, transcription_tokens_mask)
+            logger.debug(f"text_feature_extractor_output.size(): {text_feature_extractor_output.size()}")
+
         # classifier_output are logits, softmax will be applied within the loss
-        classifier_output = self.classifier_layer(seq_to_one_output)
+        if self.text_feature_extractor:
+            classifier_input = torch.cat([seq_to_one_output, text_feature_extractor_output], 1)
+        else:
+            classifier_input = seq_to_one_output
+        logger.debug(f"classifier_input.size(): {classifier_input.size()}")
+
+        classifier_output = self.classifier_layer(classifier_input)
         logger.debug(f"classifier_output.size(): {classifier_output.size()}")
     
         return classifier_output
