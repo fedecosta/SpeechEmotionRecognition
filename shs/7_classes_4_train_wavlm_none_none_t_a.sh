@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH -o logs/sbatch/outputs/slurm-%j.out
+#SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
 #SBATCH -e logs/sbatch/errors/slurm-%j.err
 #SBATCH -p veu             # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_7_classes_3
+#SBATCH --job-name=train_7_classes_4
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -13,6 +13,8 @@ python scripts/train.py \
 	--validation_labels_path './labels/development_labels_reduced_7_classes.tsv' \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
+	--model_output_folder "/home/usuaris/veussd/federico.costa/models/" \
+	--log_file_folder "/home/usuaris/veussd/federico.costa/logs/train/" \
 	--training_random_crop_secs 5.5 \
 	--evaluation_random_crop_secs 0 \
 	--augmentation_window_size_secs 5.5 \

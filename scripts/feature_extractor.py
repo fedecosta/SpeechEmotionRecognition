@@ -73,7 +73,6 @@ class WavLMExtractor(nn.Module):
     def __init__(self, input_parameters, num_layers = 12):
         super().__init__()
 
-        #self.device = device
         self.num_layers = num_layers # Layers of the Transformer of the WavLM model (BASE: 12)
         self.init_layers_weights()
         self.init_feature_extractor()

@@ -240,8 +240,9 @@ class Trainer:
             )
         
         # To be used in the weighted loss
-        self.training_dataset_classes_weights = training_dataset.get_classes_weights()
-        self.training_dataset_classes_weights = torch.tensor(self.training_dataset_classes_weights).float().to(self.device)
+        if self.params.weighted_loss:
+            self.training_dataset_classes_weights = training_dataset.get_classes_weights()
+            self.training_dataset_classes_weights = torch.tensor(self.training_dataset_classes_weights).float().to(self.device)
         
         # Load DataLoader params
         if self.params.text_feature_extractor != 'NoneTextExtractor':
@@ -364,9 +365,10 @@ class Trainer:
         # Display trainable parameters
         self.total_trainable_params = 0
         parms_dict = {}
+        logger.info(f"Detail of every trainable layer:")
         for name, parameter in self.net.named_parameters():
 
-            layer_name = name.split(".")[0]
+            layer_name = name.split(".")[1]
             if layer_name not in parms_dict.keys():
                 parms_dict[layer_name] = 0
 
@@ -376,12 +378,13 @@ class Trainer:
                 continue
             trainable_params = parameter.numel()
 
-            logger.debug(f"{name} is trainable: {trainable_params}")
+            logger.info(f"{name} is trainable with {parameter.numel()} parameters")
             
             parms_dict[layer_name] = parms_dict[layer_name] + trainable_params
             
             self.total_trainable_params += trainable_params
 
+        logger.info(f"Total trainable parameters per layer:")
         for layer_name in parms_dict.keys():
             logger.info(f"{layer_name}: {parms_dict[layer_name]}")
 

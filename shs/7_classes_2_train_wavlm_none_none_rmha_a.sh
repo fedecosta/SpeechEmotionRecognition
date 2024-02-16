@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o logs/sbatch/outputs/slurm-%j.out
+#SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
 #SBATCH -e logs/sbatch/errors/slurm-%j.err
 #SBATCH -p veu             # Partition to submit to
 #SBATCH --cpus-per-task=4
@@ -13,6 +13,8 @@ python scripts/train.py \
 	--validation_labels_path './labels/development_labels_reduced_7_classes.tsv' \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
+	--model_output_folder "/home/usuaris/veussd/federico.costa/models/" \
+	--log_file_folder "/home/usuaris/veussd/federico.costa/logs/train/" \
 	--training_random_crop_secs 3.5 \
 	--evaluation_random_crop_secs 3.5 \
 	--augmentation_window_size_secs 3.5 \

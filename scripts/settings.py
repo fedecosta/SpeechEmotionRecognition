@@ -11,6 +11,7 @@ LABELS_TO_IDS = {
     "f": 9,
 }
 
+# HACK
 LABELS_REDUCED_TO_IDS = {
     "h": 0,
     "a": 1,
@@ -19,6 +20,7 @@ LABELS_REDUCED_TO_IDS = {
     "u": 4,
     "d": 5,
     "f": 6,
+    "n": 7,
     }
 
 TRAIN_DEFAULT_SETTINGS = {

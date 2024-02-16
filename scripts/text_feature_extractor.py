@@ -114,10 +114,17 @@ class TextBERTExtractor(nn.Module):
         with torch.no_grad():
 
             output = self.model(transcription_tokens_padded, transcription_tokens_mask)
+            
+            # we can obtain the pooled vector directly
+            features =  output.pooler_output
+            
+            # we can obtain the last layer features
+            #features = output.last_hidden_state
+            # features dims: (#B, #num_vectors, #dim_vectors = 768)
 
-            # HACK we can obtain the pooled vector directly
-            return output.pooler_output
-            #return output.last_hidden_state
+            logger.debug(f"features.size(): {features.size()}")
+
+        return features
 
     
     def __call__(self, transcription_tokens_padded, transcription_tokens_mask):

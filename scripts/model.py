@@ -230,9 +230,20 @@ class Classifier(nn.Module):
     def init_classifier_layer(self, parameters):
 
         if self.text_feature_extractor:
-            # In this case we will concatenate text and acoustic pooled vectors
-            # HACK
+
+            # Option 1: concatenate text and acoustic pooled vectors
             self.classifier_layer_input_vectors_dimension = 2 * self.seq_to_one_output_vectors_dimension
+
+            # Option 2: use seq_to_one Attention Pooling
+            # we are assuming text and acoustic pooled vector have same dimension
+            #self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension 
+            #self.text_acoustic_pooling_layer = AttentionPooling(emb_in = self.seq_to_one_input_vectors_dimension)
+
+            # Option 3: all acoustic and text features goes into the same seq_to_one component
+            #self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
+
+            # Option 4: all acoustic and text features goes into the same seq_to_seq component
+            #self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
         else:
             self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
         
@@ -248,6 +259,12 @@ class Classifier(nn.Module):
 
         logger.debug(f"input_tensor.size(): {input_tensor.size()}")
 
+        # Text-based components
+
+        if self.text_feature_extractor:
+            text_feature_extractor_output = self.text_feature_extractor(transcription_tokens_padded, transcription_tokens_mask)
+            logger.debug(f"text_feature_extractor_output.size(): {text_feature_extractor_output.size()}")
+
         # Acoustic-based components
 
         feature_extractor_output = self.feature_extractor(input_tensor)
@@ -259,21 +276,56 @@ class Classifier(nn.Module):
         adapter_output = self.adapter_layer(encoder_output)
         logger.debug(f"adapter_output.size(): {adapter_output.size()}")
 
-        seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
-        logger.debug(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
+        if self.text_feature_extractor:
+            
+            # Option 1: concatenate text and acoustic pooled vectors
+            seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
 
-        seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
-        logger.debug(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
+            # Option 2: use seq_to_one Attention Pooling
+            #seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
 
-        # Text-based components
+            # Option 3: all acoustic and text features goes into the same seq_to_one component
+            #seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
+
+            # Option 4: all acoustic and text features goes into the same seq_to_seq component
+            #seq_to_seq_output = self.seq_to_seq_layer(torch.cat((adapter_output, text_feature_extractor_output), dim = 1))
+        else:
+            seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
+            logger.debug(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
 
         if self.text_feature_extractor:
-            text_feature_extractor_output = self.text_feature_extractor(transcription_tokens_padded, transcription_tokens_mask)
-            logger.debug(f"text_feature_extractor_output.size(): {text_feature_extractor_output.size()}")
+            
+            # Option 1: concatenate text and acoustic pooled vectors
+            seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+
+            # Option 2: use seq_to_one Attention Pooling
+            #seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+
+            # Option 3: all acoustic and text features goes into the same seq_to_one component
+            #seq_to_one_output = self.seq_to_one_layer(torch.cat((seq_to_seq_output, text_feature_extractor_output), dim = 1))
+
+            # Option 4: all acoustic and text features goes into the same seq_to_seq component
+            #seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+        else:
+            seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+        logger.debug(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
+
 
         # classifier_output are logits, softmax will be applied within the loss
         if self.text_feature_extractor:
+
+            # Option 1: concatenate text and acoustic pooled vectors
             classifier_input = torch.cat([seq_to_one_output, text_feature_extractor_output], 1)
+
+            # Option 2: use seq_to_one Attention Pooling
+            #classifier_input = self.text_acoustic_pooling_layer(torch.stack([seq_to_one_output, text_feature_extractor_output], dim = 1))
+
+            # Option 3: all acoustic and text features goes into the same seq_to_one component
+            #classifier_input = seq_to_one_output
+
+            # Option 4: all acoustic and text features goes into the same seq_to_seq component
+            #classifier_input = seq_to_one_output
+
         else:
             classifier_input = seq_to_one_output
         logger.debug(f"classifier_input.size(): {classifier_input.size()}")

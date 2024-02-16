@@ -4,8 +4,8 @@
 #SBATCH -p veu             # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
-#SBATCH --gres=gpu:2
-#SBATCH --job-name=train_8_classes_1
+#SBATCH --gres=gpu:4
+#SBATCH --job-name=train_8_classes_5
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -23,6 +23,7 @@ python scripts/train.py \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
 	--feature_extractor 'WavLMExtractor' \
 	--feature_extractor_output_vectors_dimension 768 \
+	--text_feature_extractor 'TextBERTExtractor' \
 	--front_end 'NoneFrontEnd' \
 	--adapter 'NoneAdapter' \
 	--seq_to_seq_method 'NoneSeqToSeq' \
@@ -30,7 +31,7 @@ python scripts/train.py \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 1600 \
+	--eval_and_save_best_model_every 3100 \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--num_workers 4 \
