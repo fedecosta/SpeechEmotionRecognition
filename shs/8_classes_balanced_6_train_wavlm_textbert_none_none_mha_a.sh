@@ -2,16 +2,15 @@
 #SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
 #SBATCH -e logs/sbatch/errors/slurm-%j.err
 #SBATCH -p veu             # Partition to submit to
-#SBATCH -w veuc11
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_balanced_7_classes_5
+#SBATCH --job-name=train_8_classes_balanced_6
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
-	--train_labels_path './labels/training_balanced_labels_reduced_7_classes.tsv' \
-	--validation_labels_path './labels/development_labels_reduced_7_classes.tsv' \
+	--train_labels_path './labels/training_balanced_labels_reduced_8_classes.tsv' \
+	--validation_labels_path './labels/development_labels_reduced_8_classes.tsv' \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
 	--model_output_folder "/home/usuaris/veussd/federico.costa/models/" \
@@ -27,18 +26,19 @@ python scripts/train.py \
 	--text_feature_extractor 'TextBERTExtractor' \
 	--front_end 'NoneFrontEnd' \
 	--adapter 'NoneAdapter' \
-	--seq_to_seq_method 'NoneSeqToSeq' \
+	--seq_to_seq_method 'MultiHeadAttention' \
+	--seq_to_seq_heads_number 4 \
 	--seq_to_one_method 'AttentionPooling' \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 2900 \
+	--eval_and_save_best_model_every 12300 \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
 	--classifier_layer_drop_out 0 \
-	--number_classes 7 \
+	--number_classes 8 \
 	--no-weighted_loss \
 	--learning_rate_multiplier 0.9 \
 	--use_weights_and_biases

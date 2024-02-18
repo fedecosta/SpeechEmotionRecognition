@@ -39,6 +39,8 @@ class ASRDummy(nn.Module):
 
         file_name = utterance_path.split("/")[-1].replace(".wav", ".txt")
         transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Transcripts/Transcripts", file_name)
+        #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/custom_transcriptions/", file_name)
+        #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/whisper_transcriptions/", file_name)
         
         with open(transcription_path, 'r') as data_labels_file:
             transcription = data_labels_file.readlines()
@@ -116,10 +118,10 @@ class TextBERTExtractor(nn.Module):
             output = self.model(transcription_tokens_padded, transcription_tokens_mask)
             
             # we can obtain the pooled vector directly
-            features =  output.pooler_output
+            #features =  output.pooler_output
             
             # we can obtain the last layer features
-            #features = output.last_hidden_state
+            features = output.last_hidden_state
             # features dims: (#B, #num_vectors, #dim_vectors = 768)
 
             logger.debug(f"features.size(): {features.size()}")

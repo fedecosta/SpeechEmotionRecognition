@@ -56,6 +56,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'learning_rate_multiplier' : 0.5,
     'weight_decay' : 0.001,
     'update_optimizer_every' : 10,
+    'loss' : 'CrossEntropy',
     'weighted_loss' : True,
     'use_weights_and_biases' : False,
 }

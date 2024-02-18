@@ -5,12 +5,12 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_7_classes_5
+#SBATCH --job-name=train_8_classes_balanced_5
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
-	--train_labels_path './labels/training_labels_reduced_7_classes.tsv' \
-	--validation_labels_path './labels/development_labels_reduced_7_classes.tsv' \
+	--train_labels_path './labels/training_balanced_labels_reduced_8_classes.tsv' \
+	--validation_labels_path './labels/development_labels_reduced_8_classes.tsv' \
 	--augmentation_noises_labels_path "./labels/data_augmentation_noises_labels.tsv" \
 	--augmentation_rirs_labels_path "./labels/data_augmentation_rirs_labels.tsv" \
 	--model_output_folder "/home/usuaris/veussd/federico.costa/models/" \
@@ -18,7 +18,7 @@ python scripts/train.py \
 	--training_random_crop_secs 5.5 \
 	--evaluation_random_crop_secs 0 \
 	--augmentation_window_size_secs 5.5 \
-	--training_augmentation_prob 0.5 \
+	--training_augmentation_prob 0.75 \
 	--evaluation_augmentation_prob 0 \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
 	--feature_extractor 'WavLMExtractor' \
@@ -31,13 +31,13 @@ python scripts/train.py \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 800 \
+	--eval_and_save_best_model_every 12300 \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
 	--classifier_layer_drop_out 0 \
-	--number_classes 7 \
-	--weighted_loss \
+	--number_classes 8 \
+	--no-weighted_loss \
 	--learning_rate_multiplier 0.9 \
 	--use_weights_and_biases

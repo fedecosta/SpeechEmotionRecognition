@@ -4,7 +4,7 @@
 #SBATCH -p veu             # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 #SBATCH --job-name=train_8_classes_5
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -38,6 +38,7 @@ python scripts/train.py \
 	--padding_type 'repetition_pad' \
 	--classifier_layer_drop_out 0 \
 	--number_classes 8 \
-	--weighted_loss \
+	--loss 'FocalLoss' \
+	--no-weighted_loss \
 	--learning_rate_multiplier 0.9 \
 	--use_weights_and_biases

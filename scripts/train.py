@@ -17,6 +17,7 @@ import wandb
 
 from data import TrainDataset
 from model import Classifier
+from loss import FocalLossCriterion
 from utils import format_training_labels, generate_model_name, get_memory_info, pad_collate
 from settings import TRAIN_DEFAULT_SETTINGS, LABELS_TO_IDS, LABELS_REDUCED_TO_IDS
 
@@ -397,16 +398,35 @@ class Trainer:
 
         logger.info("Loading the loss function...")
 
-        # The nn.CrossEntropyLoss() criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class
+        if self.params.loss == "CrossEntropy":
+            
+            # The nn.CrossEntropyLoss() criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class
 
-        if self.params.weighted_loss:
-            logger.info("Using weighted loss function...")
-            self.loss_function = nn.CrossEntropyLoss(
-                weight = self.training_dataset_classes_weights,
-            )
+            if self.params.weighted_loss:
+                logger.info("Using weighted loss function...")
+                self.loss_function = nn.CrossEntropyLoss(
+                    weight = self.training_dataset_classes_weights,
+                )
+            else:
+                logger.info("Using unweighted loss function...")
+                self.loss_function = nn.CrossEntropyLoss()
+
+        elif self.params.loss == "FocalLoss":
+
+            if self.params.weighted_loss:
+                logger.info("Using weighted loss function...")
+                self.loss_function = FocalLossCriterion(
+                    gamma = 2,
+                    weights = self.training_dataset_classes_weights,
+                )
+            else:
+                logger.info("Using unweighted loss function...")
+                self.loss_function = FocalLossCriterion(
+                    gamma = 2,
+                )
+            
         else:
-            logger.info("Using unweighted loss function...")
-            self.loss_function = nn.CrossEntropyLoss()
+            raise Exception('No Loss choice found.')  
 
         logger.info("Loss function loaded.")
 
@@ -1384,6 +1404,13 @@ class ArgsParser:
                 default = TRAIN_DEFAULT_SETTINGS['update_optimizer_every'],
                 help = "Some optimizer parameters will be updated every update_optimizer_every consecutive validations without improvement. \
                     Set to 0 if you don't want to execute this utility.",
+                )
+
+            self.parser.add_argument(
+                '--loss', 
+                type = str, 
+                choices = ['CrossEntropy', 'FocalLoss'], 
+                default = TRAIN_DEFAULT_SETTINGS['loss'],
                 )
             
             self.parser.add_argument(

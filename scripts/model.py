@@ -232,7 +232,7 @@ class Classifier(nn.Module):
         if self.text_feature_extractor:
 
             # Option 1: concatenate text and acoustic pooled vectors
-            self.classifier_layer_input_vectors_dimension = 2 * self.seq_to_one_output_vectors_dimension
+            #self.classifier_layer_input_vectors_dimension = 2 * self.seq_to_one_output_vectors_dimension
 
             # Option 2: use seq_to_one Attention Pooling
             # we are assuming text and acoustic pooled vector have same dimension
@@ -243,7 +243,7 @@ class Classifier(nn.Module):
             #self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
 
             # Option 4: all acoustic and text features goes into the same seq_to_seq component
-            #self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
+            self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
         else:
             self.classifier_layer_input_vectors_dimension = self.seq_to_one_output_vectors_dimension
         
@@ -279,7 +279,7 @@ class Classifier(nn.Module):
         if self.text_feature_extractor:
             
             # Option 1: concatenate text and acoustic pooled vectors
-            seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
+            #seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
 
             # Option 2: use seq_to_one Attention Pooling
             #seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
@@ -288,7 +288,7 @@ class Classifier(nn.Module):
             #seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
 
             # Option 4: all acoustic and text features goes into the same seq_to_seq component
-            #seq_to_seq_output = self.seq_to_seq_layer(torch.cat((adapter_output, text_feature_extractor_output), dim = 1))
+            seq_to_seq_output = self.seq_to_seq_layer(torch.cat((adapter_output, text_feature_extractor_output), dim = 1))
         else:
             seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
             logger.debug(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
@@ -296,7 +296,7 @@ class Classifier(nn.Module):
         if self.text_feature_extractor:
             
             # Option 1: concatenate text and acoustic pooled vectors
-            seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+            #seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
 
             # Option 2: use seq_to_one Attention Pooling
             #seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
@@ -305,7 +305,7 @@ class Classifier(nn.Module):
             #seq_to_one_output = self.seq_to_one_layer(torch.cat((seq_to_seq_output, text_feature_extractor_output), dim = 1))
 
             # Option 4: all acoustic and text features goes into the same seq_to_seq component
-            #seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
+            seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
         else:
             seq_to_one_output = self.seq_to_one_layer(seq_to_seq_output)
         logger.debug(f"seq_to_one_output.size(): {seq_to_one_output.size()}")
@@ -315,7 +315,7 @@ class Classifier(nn.Module):
         if self.text_feature_extractor:
 
             # Option 1: concatenate text and acoustic pooled vectors
-            classifier_input = torch.cat([seq_to_one_output, text_feature_extractor_output], 1)
+            #classifier_input = torch.cat([seq_to_one_output, text_feature_extractor_output], 1)
 
             # Option 2: use seq_to_one Attention Pooling
             #classifier_input = self.text_acoustic_pooling_layer(torch.stack([seq_to_one_output, text_feature_extractor_output], dim = 1))
@@ -324,7 +324,7 @@ class Classifier(nn.Module):
             #classifier_input = seq_to_one_output
 
             # Option 4: all acoustic and text features goes into the same seq_to_seq component
-            #classifier_input = seq_to_one_output
+            classifier_input = seq_to_one_output
 
         else:
             classifier_input = seq_to_one_output
