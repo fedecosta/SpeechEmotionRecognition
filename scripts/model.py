@@ -1,6 +1,7 @@
 import logging
 from torch import nn
 import torch
+import numpy as np
 from feature_extractor import SpectrogramExtractor, WavLMExtractor
 from text_feature_extractor import TextBERTExtractor
 from front_end import VGG, Resnet34, Resnet101, NoneFrontEnd
@@ -30,14 +31,6 @@ logger_stream_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stream_handler)
 # ---------------------------------------------------------------------
 
-if False:
-    import torch
-    
-    from torch.nn import functional as F
-    from poolings_original import Attention, MultiHeadAttention, DoubleMHA
-    from poolings import SelfAttentionAttentionPooling, MultiHeadAttentionAttentionPooling, TransformerStackedAttentionPooling
-    
-    from loss import AMSoftmax
 
 class Classifier(nn.Module):
 
@@ -83,7 +76,8 @@ class Classifier(nn.Module):
                 # Freeze all BERT parameters except layers weights and the last layer
                 #if name != "layer_weights" and "transformer.layers.11" not in name:
                 # Freeze all BERT parameters except layers weights
-                if True:#name != "layer_weights":
+                #if "encoder.layer.11" not in name:
+                if True:
                     logger.info(f"Setting {name} to requires_grad = False")
                     parameter.requires_grad = False
         else:
@@ -334,5 +328,41 @@ class Classifier(nn.Module):
         logger.debug(f"classifier_output.size(): {classifier_output.size()}")
     
         return classifier_output
+
+    
+    def predict(self, input_tensor, transcription_tokens_padded = None, transcription_tokens_mask = None, thresholds_per_class = None):
+
+        # HACK awfull hack, we are going to assume that we are going to predict over single tensors (no batches)
+        
+        predicted_logits = self.forward(input_tensor, transcription_tokens_padded, transcription_tokens_mask)
+        predicted_probas = torch.nn.functional.log_softmax(predicted_logits, dim = 1)
+        predicted_probas = predicted_probas.squeeze().to("cpu").numpy()
+        logger.debug(f"predicted_probas: {predicted_probas}")
+
+        if thresholds_per_class is not None:
+            logger.debug("Entered threshold_per_class")
+            max_proba_class = np.argmax(predicted_probas)
+            logger.debug(f"max_proba_class: {max_proba_class}")
+            threshold_check = predicted_probas[max_proba_class] >= thresholds_per_class[max_proba_class]
+            logger.debug(f"threshold_check: {threshold_check}, {predicted_probas[max_proba_class]}, {thresholds_per_class[max_proba_class]}")
+
+            if threshold_check == True:
+                logger.debug("Entered threshold_check")
+                predicted_class = max_proba_class
+            else:
+                logger.debug("Entered filtered_probas")
+                filtered_probas = predicted_probas.copy()
+                filtered_probas[max_proba_class] = -np.inf
+                logger.debug(f"filtered_probas: {filtered_probas}")
+                predicted_class = np.argmax(filtered_probas)
+        else:
+            logger.debug("Entered normal prediction")
+            predicted_class = np.argmax(predicted_probas)
+
+        return torch.tensor([predicted_class]).int()
+
+
+
+
 
 

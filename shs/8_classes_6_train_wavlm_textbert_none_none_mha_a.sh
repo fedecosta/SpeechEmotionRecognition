@@ -20,7 +20,7 @@ python scripts/train.py \
 	--augmentation_window_size_secs 5.5 \
 	--training_augmentation_prob 0.5 \
 	--evaluation_augmentation_prob 0 \
-	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
+	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' 'add_background_noise' \
 	--feature_extractor 'WavLMExtractor' \
 	--feature_extractor_output_vectors_dimension 768 \
 	--text_feature_extractor 'TextBERTExtractor' \
@@ -37,7 +37,7 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
-	--classifier_layer_drop_out 0 \
+	--classifier_layer_drop_out 0.1 \
 	--number_classes 8 \
 	--weighted_loss \
 	--learning_rate_multiplier 0.9 \

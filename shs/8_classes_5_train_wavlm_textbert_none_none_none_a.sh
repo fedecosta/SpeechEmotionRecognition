@@ -38,7 +38,6 @@ python scripts/train.py \
 	--padding_type 'repetition_pad' \
 	--classifier_layer_drop_out 0 \
 	--number_classes 8 \
-	--loss 'FocalLoss' \
-	--no-weighted_loss \
+	--weighted_loss \
 	--learning_rate_multiplier 0.9 \
 	--use_weights_and_biases
