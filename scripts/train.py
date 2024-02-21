@@ -72,10 +72,12 @@ class Trainer:
         
         # Init a wandb project
             
+        # TODO fix this, it should be more general to other users
         wandb_run = wandb.init(
             project = "emotions_trains_0", 
             job_type = "training", 
             entity = "upc-veu",
+            dir = "/home/usuaris/veussd/federico.costa/logs/wandb/SpeechEmotionRecognition"
             )
         del wandb_run
 
@@ -1201,6 +1203,13 @@ class ArgsParser:
                 default = TRAIN_DEFAULT_SETTINGS['feature_extractor'],
                 choices = ['SpectrogramExtractor', 'WavLMExtractor'], 
                 help = 'Type of Feature Extractor used. It should take an audio waveform and output a sequence of vector (features).' 
+                )
+
+            self.parser.add_argument(
+                '--wavlm_flavor', 
+                type = str, 
+                choices = ['WAVLM_BASE', 'WAVLM_BASE_PLUS', 'WAVLM_LARGE'], 
+                help = 'wavLM model flavor, considered only if WavLMExtractor is used.' 
                 )
             
             self.parser.add_argument(

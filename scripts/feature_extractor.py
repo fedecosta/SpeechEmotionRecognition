@@ -74,13 +74,22 @@ class WavLMExtractor(nn.Module):
         super().__init__()
 
         self.num_layers = num_layers # Layers of the Transformer of the WavLM model (BASE: 12)
+        self.wavlm_flavor = input_parameters.wavlm_flavor
         self.init_layers_weights()
         self.init_feature_extractor()
 
 
     def init_feature_extractor(self):
 
-        bundle = torchaudio.pipelines.WAVLM_BASE
+        if self.wavlm_flavor == "WAVLM_BASE":
+            bundle = torchaudio.pipelines.WAVLM_BASE
+        elif self.wavlm_flavor == "WAVLM_BASE_PLUS":
+            bundle = torchaudio.pipelines.WAVLM_BASE_PLUS
+        elif self.wavlm_flavor == "WAVLM_LARGE":
+            bundle = torchaudio.pipelines.WAVLM_LARGE
+        else:
+            raise Exception('No wavlm_flavor choice found.') 
+
         self.feature_extractor = bundle.get_model()
 
     

@@ -22,6 +22,7 @@ python scripts/train.py \
 	--evaluation_augmentation_prob 0 \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
 	--feature_extractor 'WavLMExtractor' \
+	--wavlm_flavor 'WAVLM_BASE' \
 	--feature_extractor_output_vectors_dimension 768 \
 	--text_feature_extractor 'TextBERTExtractor' \
 	--front_end 'NoneFrontEnd' \
