@@ -70,23 +70,28 @@ class SpectrogramExtractor(nn.Module):
 
 class WavLMExtractor(nn.Module):
 
-    def __init__(self, input_parameters, num_layers = 12):
+    def __init__(self, input_parameters):
         super().__init__()
 
-        self.num_layers = num_layers # Layers of the Transformer of the WavLM model (BASE: 12)
         self.wavlm_flavor = input_parameters.wavlm_flavor
-        self.init_layers_weights()
         self.init_feature_extractor()
+        self.init_layers_weights()
 
 
     def init_feature_extractor(self):
 
         if self.wavlm_flavor == "WAVLM_BASE":
             bundle = torchaudio.pipelines.WAVLM_BASE
+            self.num_layers = 12 # Layers of the Transformer of the WavLM model
+            # every layer has features with 768 dimension
         elif self.wavlm_flavor == "WAVLM_BASE_PLUS":
             bundle = torchaudio.pipelines.WAVLM_BASE_PLUS
+            self.num_layers = 12 # Layers of the Transformer of the WavLM model
+            # every layer has features with 768 dimension
         elif self.wavlm_flavor == "WAVLM_LARGE":
             bundle = torchaudio.pipelines.WAVLM_LARGE
+            self.num_layers = 24 # Layers of the Transformer of the WavLM model
+            # every layer has features with 1024 dimension
         else:
             raise Exception('No wavlm_flavor choice found.') 
 
@@ -101,7 +106,7 @@ class WavLMExtractor(nn.Module):
     def extract_features(self, waveform):
             
         features, _ = self.feature_extractor.extract_features(waveform)
-        # level_features dims: (#B, #num_vectors, #dim_vectors = 768)
+        # level_features dims: (#B, #num_vectors, #dim_vectors = )
         
         hidden_states = torch.stack(features, dim=1)
 

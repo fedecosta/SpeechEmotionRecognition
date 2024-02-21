@@ -23,10 +23,11 @@ python scripts/train.py \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' 'add_background_noise' \
 	--feature_extractor 'WavLMExtractor' \
 	--wavlm_flavor 'WAVLM_LARGE' \
-	--feature_extractor_output_vectors_dimension 768 \
+	--feature_extractor_output_vectors_dimension 1024 \
 	--text_feature_extractor 'TextBERTExtractor' \
 	--front_end 'NoneFrontEnd' \
-	--adapter 'NoneAdapter' \
+	--adapter 'LinearAdapter' \
+	--adapter_output_vectors_dimension 768 \
 	--seq_to_seq_method 'MultiHeadAttention' \
 	--seq_to_seq_heads_number 4 \
 	--seq_to_one_method 'AttentionPooling' \
@@ -42,4 +43,4 @@ python scripts/train.py \
 	--number_classes 8 \
 	--weighted_loss \
 	--learning_rate_multiplier 0.9 \
-	--use_weights_and_biases
+	--no-use_weights_and_biases
