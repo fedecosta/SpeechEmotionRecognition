@@ -100,15 +100,23 @@ class ASRModel(nn.Module):
 
 class TextBERTExtractor(nn.Module):
 
-    def __init__(self):
+    def __init__(self, input_parameters):
         super().__init__()
 
+        self.bert_flavor = input_parameters.bert_flavor
         self.init_extractor()
     
     
     def init_extractor(self):
 
-        self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
+        if self.bert_flavor == "BERT_BASE_UNCASED":
+            self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-uncased')
+            # model outputs features with 768 dimension
+        elif self.bert_flavor == "BERT_LARGE_UNCASED":
+            self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-large-uncased')
+            # v features with 1024 dimension
+        else:
+            raise Exception('No bert_flavor choice found.')
 
 
     def extract_features(self, transcription_tokens_padded, transcription_tokens_mask):

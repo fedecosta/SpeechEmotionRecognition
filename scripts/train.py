@@ -18,7 +18,7 @@ import wandb
 from data import TrainDataset
 from model import Classifier
 from loss import FocalLossCriterion
-from utils import format_training_labels, generate_model_name, get_memory_info, pad_collate
+from utils import format_training_labels, generate_model_name, get_memory_info, pad_collate, get_waveforms_stats
 from settings import TRAIN_DEFAULT_SETTINGS, LABELS_TO_IDS, LABELS_REDUCED_TO_IDS
 
 # ---------------------------------------------------------------------
@@ -233,6 +233,8 @@ class Trainer:
 
         logger.info(f'Loading training data with labels from {self.params.train_labels_path}')
 
+        self.training_wav_mean, self.training_wav_std = get_waveforms_stats(train_labels_lines, self.params.sample_rate)
+
         # Instanciate a Dataset class
         training_dataset = TrainDataset(
             utterances_paths = train_labels_lines, 
@@ -240,6 +242,8 @@ class Trainer:
             random_crop_secs = self.params.training_random_crop_secs,
             augmentation_prob = self.params.training_augmentation_prob,
             sample_rate = self.params.sample_rate,
+            waveforms_mean = self.training_wav_mean,
+            waveforms_std = self.training_wav_std,
             )
         
         # To be used in the weighted loss
@@ -291,6 +295,8 @@ class Trainer:
             random_crop_secs = self.params.evaluation_random_crop_secs,
             augmentation_prob = self.params.evaluation_augmentation_prob,
             sample_rate = self.params.sample_rate,
+            waveforms_mean = self.training_wav_mean,
+            waveforms_std = self.training_wav_std,
         )
 
         # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
@@ -451,21 +457,28 @@ class Trainer:
                 #self.net.parameters(), 
                 filter(lambda p: p.requires_grad, self.net.parameters()),
                 lr=self.params.learning_rate, 
-                weight_decay=self.params.weight_decay
+                weight_decay=self.params.weight_decay,
                 )
         if self.params.optimizer == 'sgd':
             self.optimizer = optim.SGD(
                 #self.net.parameters(), 
                 filter(lambda p: p.requires_grad, self.net.parameters()),
                 lr=self.params.learning_rate, 
-                weight_decay=self.params.weight_decay
+                weight_decay=self.params.weight_decay,
                 )
         if self.params.optimizer == 'rmsprop':
             self.optimizer = optim.RMSprop(
                 #self.net.parameters(), 
                 filter(lambda p: p.requires_grad, self.net.parameters()), 
                 lr=self.params.learning_rate, 
-                weight_decay=self.params.weight_decay
+                weight_decay=self.params.weight_decay,
+                )
+        if self.params.optimizer == 'adamw':
+            self.optimizer = optim.AdamW(
+                #self.net.parameters(), 
+                filter(lambda p: p.requires_grad, self.net.parameters()), 
+                lr=self.params.learning_rate, 
+                weight_decay=self.params.weight_decay,
                 )
 
         if self.params.load_checkpoint == True:
@@ -1226,6 +1239,13 @@ class ArgsParser:
                 choices = ['TextBERTExtractor', 'NoneTextExtractor'], 
                 help = 'Type of Text Feature Extractor used. It should take an audio waveform and output a sequence of vector (features).' 
                 )
+
+            self.parser.add_argument(
+                '--bert_flavor', 
+                type = str, 
+                choices = ['BERT_BASE_UNCASED', 'BERT_LARGE_UNCASED'], 
+                help = 'BERT model flavor, considered only if TextBERTExtractor is used.' 
+                )
             
             self.parser.add_argument(
                 '--front_end', 
@@ -1315,6 +1335,20 @@ class ArgsParser:
                 default = TRAIN_DEFAULT_SETTINGS['classifier_layer_drop_out'],
                 help = 'Dropout probability to use in the classfifer component.'
                 )
+
+            self.parser.add_argument(
+                '--classifier_hidden_layers', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['classifier_hidden_layers'],
+                help = 'Number of hidden layers in the classifier layer.',
+                )
+
+            self.parser.add_argument(
+                '--classifier_hidden_layers_width', 
+                type = int, 
+                default = TRAIN_DEFAULT_SETTINGS['classifier_hidden_layers_width'],
+                help = 'Width of every hidden layer in the classifier layer.',
+                )
             
             self.parser.add_argument(
                 '--number_classes', 
@@ -1385,7 +1419,7 @@ class ArgsParser:
             self.parser.add_argument(
                 '--optimizer', 
                 type = str, 
-                choices = ['adam', 'sgd', 'rmsprop'], 
+                choices = ['adam', 'sgd', 'rmsprop', 'adamw'], 
                 default = TRAIN_DEFAULT_SETTINGS['optimizer'],
                 )
 

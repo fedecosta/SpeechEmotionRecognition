@@ -33,7 +33,7 @@ logger.addHandler(logger_stream_handler)
 
 class TrainDataset(data.Dataset):
 
-    def __init__(self, utterances_paths, input_parameters, random_crop_secs, augmentation_prob = 0, sample_rate = 16000):
+    def __init__(self, utterances_paths, input_parameters, random_crop_secs, augmentation_prob = 0, sample_rate = 16000, waveforms_mean = None, waveforms_std = None):
         
         self.utterances_paths = utterances_paths
         # I suspect when instantiating two datasets the parameters are overrided
@@ -41,6 +41,8 @@ class TrainDataset(data.Dataset):
         self.parameters = copy.deepcopy(input_parameters) 
         self.augmentation_prob = augmentation_prob
         self.sample_rate = sample_rate
+        self.waveforms_mean = waveforms_mean
+        self.waveforms_std = waveforms_std
         self.random_crop_secs = random_crop_secs
         self.random_crop_samples = int(self.random_crop_secs * self.sample_rate)
         self.num_samples = len(utterances_paths)
@@ -59,6 +61,9 @@ class TrainDataset(data.Dataset):
         
         weights = weights_df["weight"].to_list()
         weights = [1/weight for weight in weights]
+
+        # HACK if we want to try baseline weights
+        #weights = [1/weight/8 for weight in weights]
 
         for class_id in range(len(weights)):
             logger.info(f"Class_id {class_id} weight: {weights[class_id]}")
@@ -83,7 +88,12 @@ class TrainDataset(data.Dataset):
         # HACK we need to transcribe into this class because the ASR model has a problem implementing batches transcriptions
         
         self.transcriptor = ASRDummy()
-        self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
+        if self.parameters.bert_flavor == "BERT_BASE_UNCASED":
+            self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-uncased')
+        elif self.parameters.bert_flavor == "BERT_LARGE_UNCASED":
+            self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-large-uncased')
+        else:
+            raise Exception('No bert_flavor choice found.')
     
 
     def pad_waveform(self, waveform, padding_type, random_crop_samples):
@@ -112,6 +122,16 @@ class TrainDataset(data.Dataset):
 
         return cropped_waveform
 
+    
+    def normalize(self, waveform):
+
+        if self.waveforms_mean is not None and self.waveforms_std is not None:
+            normalized_waveform = (waveform - self.waveforms_mean) / (self.waveforms_std + 0.000001)
+        else:
+            normalized_waveform = waveform
+
+        return normalized_waveform
+    
     
     def process_waveform(self, waveform, original_sample_rate):
 
@@ -147,6 +167,8 @@ class TrainDataset(data.Dataset):
             # HACK don't understand why, I have to do this slicing (which sample_audio_window does) to make dataloader work
             waveform =  waveform[:]
 
+        waveform = self.normalize(waveform)
+        
         return waveform
 
     

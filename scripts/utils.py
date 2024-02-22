@@ -4,6 +4,7 @@ import logging
 import psutil
 import torch
 from torch.nn.utils.rnn import pad_sequence
+import torchaudio
 import numpy as np
 # ---------------------------------------------------------------------
 # Logging
@@ -137,3 +138,34 @@ def pad_collate(batch_data):
     transcription_tokens_mask = torch.tensor(np.array(transcription_tokens_mask))
 
     return input, label, transcription_tokens_padded, transcription_tokens_mask
+
+
+def get_waveforms_stats(labels_lines, sample_rate):
+
+    audio_paths = [line.split("\t")[0] for line in labels_lines]
+
+    logger.info(f"Computing {len(audio_paths)} waveforms statistics...")
+
+    count = 0
+    wav_sum = 0
+    wav_sqsum = 0
+    
+    for audio_num, audio_path in enumerate(audio_paths):
+        
+        waveform, loaded_sample_rate = torchaudio.load(audio_path, sample_rate)
+
+        assert loaded_sample_rate == sample_rate, f"loaded_sample_rate ({loaded_sample_rate}) should match sample_rate ({sample_rate})!"
+
+        waveform = waveform.squeeze().numpy()
+        wav_sum += np.sum(waveform)
+        wav_sqsum += np.sum(waveform**2)
+        count += len(waveform)
+
+    wav_mean = wav_sum / count
+    wav_var = (wav_sqsum / count) - (wav_mean**2)
+    wav_std = np.sqrt(wav_var)
+
+    logger.info(f"Waveforms statistics computed. Mean: {wav_mean}, std: {wav_std}")
+
+    return wav_mean, wav_std
+

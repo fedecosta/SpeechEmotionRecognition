@@ -69,7 +69,7 @@ class Classifier(nn.Module):
     def init_text_feature_extractor(self, parameters):
 
         if parameters.text_feature_extractor == 'TextBERTExtractor':
-            self.text_feature_extractor = TextBERTExtractor()
+            self.text_feature_extractor = TextBERTExtractor(parameters)
 
             for name, parameter in self.text_feature_extractor.named_parameters():
                 # TODO allow to train some parameters

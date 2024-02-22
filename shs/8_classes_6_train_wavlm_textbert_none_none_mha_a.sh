@@ -25,9 +25,9 @@ python scripts/train.py \
 	--wavlm_flavor 'WAVLM_LARGE' \
 	--feature_extractor_output_vectors_dimension 1024 \
 	--text_feature_extractor 'TextBERTExtractor' \
+	--bert_flavor 'BERT_LARGE_UNCASED' \
 	--front_end 'NoneFrontEnd' \
-	--adapter 'LinearAdapter' \
-	--adapter_output_vectors_dimension 768 \
+	--adapter 'NoneAdapter' \
 	--seq_to_seq_method 'MultiHeadAttention' \
 	--seq_to_seq_heads_number 4 \
 	--seq_to_one_method 'AttentionPooling' \
@@ -39,8 +39,13 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
+	--classifier_hidden_layers 0 \
+	--classifier_hidden_layers_width 1024 \
 	--classifier_layer_drop_out 0.1 \
 	--number_classes 8 \
 	--weighted_loss \
+	--optimizer 'adamw' \
+	--learning_rate 0.00005 \
 	--learning_rate_multiplier 0.9 \
-	--no-use_weights_and_biases
+	--weight_decay 0.01 \
+	--use_weights_and_biases
