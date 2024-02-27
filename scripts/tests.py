@@ -21,7 +21,19 @@ train_labels_lines = format_training_labels(
     header = True,
 )
 
-if True:
+line_num = 51858
+utterance_path = train_labels_lines[line_num].split("\t")[0]
+file_name = utterance_path.split("/")[-1]
+waveform, sample_rate = torchaudio.load(utterance_path)
+
+bundle = torchaudio.pipelines.WAV2VEC2_LARGE_LV60K
+feature_extractor = bundle.get_model()
+features, _ = feature_extractor.extract_features(waveform)
+print(len(features))
+print(features[-1].size())
+
+
+if False:
     line_num = 51858
     utterance_path = train_labels_lines[line_num].split("\t")[0]
     file_name = utterance_path.split("/")[-1]

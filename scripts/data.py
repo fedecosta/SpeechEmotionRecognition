@@ -56,14 +56,11 @@ class TrainDataset(data.Dataset):
 
         weights_series = pd.Series(dataset_labels).value_counts(normalize = True, dropna = False)
         weights_df = pd.DataFrame(weights_series).reset_index()
-        weights_df.columns = ["label", "weight"]
-        weights_df = weights_df.sort_values("label", ascending=True)
+        weights_df.columns = ["class_id", "weight"]
+        weights_df["weight"] = 1 / weights_df["weight"]
+        weights_df = weights_df.sort_values("class_id", ascending=True)
         
         weights = weights_df["weight"].to_list()
-        weights = [1/weight for weight in weights]
-
-        # HACK if we want to try baseline weights
-        #weights = [1/weight/8 for weight in weights]
 
         for class_id in range(len(weights)):
             logger.info(f"Class_id {class_id} weight: {weights[class_id]}")
@@ -90,8 +87,12 @@ class TrainDataset(data.Dataset):
         self.transcriptor = ASRDummy()
         if self.parameters.bert_flavor == "BERT_BASE_UNCASED":
             self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-uncased')
+        elif self.parameters.bert_flavor == "BERT_BASE_CASED":
+            self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
         elif self.parameters.bert_flavor == "BERT_LARGE_UNCASED":
             self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-large-uncased')
+        elif self.parameters.bert_flavor == "BERT_LARGE_CASED":
+            self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-large-cased')
         else:
             raise Exception('No bert_flavor choice found.')
     

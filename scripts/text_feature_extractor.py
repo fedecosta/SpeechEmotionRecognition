@@ -38,9 +38,9 @@ class ASRDummy(nn.Module):
     def transcript(self, utterance_path):
 
         file_name = utterance_path.split("/")[-1].replace(".wav", ".txt")
-        transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Transcripts/Transcripts", file_name)
+        #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Transcripts/Transcripts", file_name)
         #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/custom_transcriptions/", file_name)
-        #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/whisper_transcriptions/", file_name)
+        transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/whisper_transcriptions/", file_name)
         
         with open(transcription_path, 'r') as data_labels_file:
             transcription = data_labels_file.readlines()
@@ -112,9 +112,15 @@ class TextBERTExtractor(nn.Module):
         if self.bert_flavor == "BERT_BASE_UNCASED":
             self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-uncased')
             # model outputs features with 768 dimension
+        elif self.bert_flavor == "BERT_BASE_CASED":
+            self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
+            # model outputs features with 768 dimension
         elif self.bert_flavor == "BERT_LARGE_UNCASED":
             self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-large-uncased')
-            # v features with 1024 dimension
+            # model outputs features features with 1024 dimension
+        elif self.bert_flavor == "BERT_LARGE_CASED":
+            self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-large-cased')
+            # model outputs features features with 1024 dimension
         else:
             raise Exception('No bert_flavor choice found.')
 

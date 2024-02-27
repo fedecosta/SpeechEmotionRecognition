@@ -255,14 +255,14 @@ class Trainer:
         if self.params.text_feature_extractor != 'NoneTextExtractor':
             data_loader_parameters = {
                 'batch_size': self.params.training_batch_size, 
-                'shuffle': True, # FIX hardcoded True
+                'shuffle': True,
                 'num_workers': self.params.num_workers,
                 'collate_fn': pad_collate,
                 }
         else:
             data_loader_parameters = {
                 'batch_size': self.params.training_batch_size, 
-                'shuffle': True, # FIX hardcoded True
+                'shuffle': True,
                 'num_workers': self.params.num_workers,
                 }
 
@@ -804,7 +804,7 @@ class Trainer:
             and self.params.update_optimizer_every > 0 \
             and self.validations_without_improvement_or_opt_update % self.params.update_optimizer_every == 0:
 
-            if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
+            if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam' or self.params.optimizer == 'adamw':
 
                 logger.info(f"Updating optimizer...")
 
@@ -1221,7 +1221,7 @@ class ArgsParser:
             self.parser.add_argument(
                 '--wavlm_flavor', 
                 type = str, 
-                choices = ['WAVLM_BASE', 'WAVLM_BASE_PLUS', 'WAVLM_LARGE'], 
+                choices = ['WAVLM_BASE', 'WAVLM_BASE_PLUS', 'WAVLM_LARGE', 'WAV2VEC2_LARGE_LV60K', 'HUBERT_LARGE'], 
                 help = 'wavLM model flavor, considered only if WavLMExtractor is used.' 
                 )
             
@@ -1243,7 +1243,7 @@ class ArgsParser:
             self.parser.add_argument(
                 '--bert_flavor', 
                 type = str, 
-                choices = ['BERT_BASE_UNCASED', 'BERT_LARGE_UNCASED'], 
+                choices = ['BERT_BASE_UNCASED', 'BERT_BASE_CASED', 'BERT_LARGE_UNCASED', 'BERT_LARGE_CASED'], 
                 help = 'BERT model flavor, considered only if TextBERTExtractor is used.' 
                 )
             
@@ -1329,6 +1329,20 @@ class ArgsParser:
                 help = 'Type of pooling method applied to the output sequence to sequence component of the model.',
                 )
 
+            self.parser.add_argument(
+                '--seq_to_seq_input_dropout', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['seq_to_seq_input_dropout'],
+                help = 'Dropout probability to use in the seq to seq component input.'
+                )
+
+            self.parser.add_argument(
+                '--seq_to_one_input_dropout', 
+                type = float, 
+                default = TRAIN_DEFAULT_SETTINGS['seq_to_one_input_dropout'],
+                help = 'Dropout probability to use in the seq to one component input.'
+                )
+            
             self.parser.add_argument(
                 '--classifier_layer_drop_out', 
                 type = float, 

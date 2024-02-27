@@ -59,11 +59,21 @@ class Classifier(nn.Module):
             
             # Freeze all wavLM parameters except layers weights and the last layer
             #if name != "layer_weights" and "transformer.layers.11" not in name:
+                #logger.info(f"Setting {name} to requires_grad = False")
+                #parameter.requires_grad = False
+                
             
             # Freeze all wavLM parameters except layers weights
             if name != "layer_weights":
                 logger.info(f"Setting {name} to requires_grad = False")
                 parameter.requires_grad = False
+
+            # Freeze all wavLM parameters
+            #if True:
+            #    logger.info(f"Setting {name} to requires_grad = False")
+            #    parameter.requires_grad = False
+
+        self.feature_extractor_norm_layer = nn.LayerNorm(parameters.feature_extractor_output_vectors_dimension)
 
     
     def init_text_feature_extractor(self, parameters):
@@ -80,6 +90,9 @@ class Classifier(nn.Module):
                 if True:
                     logger.info(f"Setting {name} to requires_grad = False")
                     parameter.requires_grad = False
+            
+            self.text_feature_extractor_norm_layer = nn.LayerNorm(parameters.feature_extractor_output_vectors_dimension)
+
         else:
             self.text_feature_extractor = None
             logger.info('No Text Feature Extractor selected.')
@@ -136,12 +149,10 @@ class Classifier(nn.Module):
         
 
     def init_adapter_layer(self, parameters):
-        NoneAdapter, LinearAdapter, NonLinearAdapter
 
         if parameters.adapter == 'NoneAdapter':
             self.adapter_layer = NoneAdapter()
             parameters.adapter_output_vectors_dimension = self.front_end_output_vectors_dimension
-
         elif parameters.adapter == 'LinearAdapter':
             self.adapter_layer = LinearAdapter(self.front_end_output_vectors_dimension, parameters.adapter_output_vectors_dimension)
         elif parameters.adapter == 'NonLinearAdapter':
@@ -154,6 +165,8 @@ class Classifier(nn.Module):
         
             self.seq_to_seq_method = parameters.seq_to_seq_method
             self.seq_to_seq_input_vectors_dimension = parameters.adapter_output_vectors_dimension
+
+            self.seq_to_seq_input_dropout = nn.Dropout(parameters.seq_to_seq_input_dropout)
 
             # HACK ReducedMultiHeadAttention seq to seq input and output dimensions don't match
             if self.seq_to_seq_method == 'ReducedMultiHeadAttention':
@@ -197,6 +210,8 @@ class Classifier(nn.Module):
             self.seq_to_one_method = parameters.seq_to_one_method
             self.seq_to_one_input_vectors_dimension = self.seq_to_seq_output_vectors_dimension
             self.seq_to_one_output_vectors_dimension = self.seq_to_one_input_vectors_dimension
+
+            self.seq_to_one_input_dropout = nn.Dropout(parameters.seq_to_one_input_dropout)
 
             if self.seq_to_one_method == 'StatisticalPooling':
                 self.seq_to_one_layer = StatisticalPooling(
@@ -257,11 +272,13 @@ class Classifier(nn.Module):
 
         if self.text_feature_extractor:
             text_feature_extractor_output = self.text_feature_extractor(transcription_tokens_padded, transcription_tokens_mask)
+            text_feature_extractor_output = self.text_feature_extractor_norm_layer(text_feature_extractor_output)
             logger.debug(f"text_feature_extractor_output.size(): {text_feature_extractor_output.size()}")
 
         # Acoustic-based components
 
         feature_extractor_output = self.feature_extractor(input_tensor)
+        feature_extractor_output = self.feature_extractor_norm_layer(feature_extractor_output)
         logger.debug(f"feature_extractor_output.size(): {feature_extractor_output.size()}")
 
         encoder_output = self.front_end(feature_extractor_output)
@@ -270,6 +287,7 @@ class Classifier(nn.Module):
         adapter_output = self.adapter_layer(encoder_output)
         logger.debug(f"adapter_output.size(): {adapter_output.size()}")
 
+        adapter_output = self.seq_to_seq_input_dropout(adapter_output)
         if self.text_feature_extractor:
             
             # Option 1: concatenate text and acoustic pooled vectors
@@ -287,6 +305,7 @@ class Classifier(nn.Module):
             seq_to_seq_output = self.seq_to_seq_layer(adapter_output)
             logger.debug(f"seq_to_seq_output.size(): {seq_to_seq_output.size()}")
 
+        seq_to_seq_output = self.seq_to_one_input_dropout(seq_to_seq_output)
         if self.text_feature_extractor:
             
             # Option 1: concatenate text and acoustic pooled vectors

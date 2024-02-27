@@ -42,6 +42,8 @@ TRAIN_DEFAULT_SETTINGS = {
     'adapter': 'NoneAdapter',
     'seq_to_seq_method' : 'NoneSeqToSeq',
     'seq_to_one_method' : 'StatisticalPooling',
+    'seq_to_seq_input_dropout' : 0,
+    'seq_to_one_input_dropout': 0,
     'classifier_layer_drop_out' : 0,
     'classifier_hidden_layers': 2,
     'classifier_hidden_layers_width': 512,

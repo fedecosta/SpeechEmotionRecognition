@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
-#SBATCH -e logs/sbatch/errors/slurm-%j.err
-#SBATCH -p veu             # Partition to submit to
+#SBATCH -e /home/usuaris/veussd/federico.costa/logs/sbatch/errors/slurm-%j.err
+#SBATCH -p veu            # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_8_classes_5
+#SBATCH --job-name=train_8_classes_4
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -20,15 +20,19 @@ python scripts/train.py \
 	--augmentation_window_size_secs 5.5 \
 	--training_augmentation_prob 0.5 \
 	--evaluation_augmentation_prob 0 \
-	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' \
+	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' 'add_background_noise' \
 	--feature_extractor 'WavLMExtractor' \
-	--wavlm_flavor 'WAVLM_BASE' \
-	--feature_extractor_output_vectors_dimension 768 \
+	--wavlm_flavor 'WAVLM_LARGE' \
+	--feature_extractor_output_vectors_dimension 1024 \
 	--text_feature_extractor 'TextBERTExtractor' \
+	--bert_flavor 'BERT_LARGE_UNCASED' \
 	--front_end 'NoneFrontEnd' \
 	--adapter 'NoneAdapter' \
-	--seq_to_seq_method 'NoneSeqToSeq' \
+	--seq_to_seq_method 'MultiHeadAttention' \
+	--seq_to_seq_heads_number 4 \
+	--seq_to_seq_input_dropout 0.0 \
 	--seq_to_one_method 'AttentionPooling' \
+	--seq_to_one_input_dropout 0.0 \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
@@ -37,8 +41,14 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
-	--classifier_layer_drop_out 0 \
+	--classifier_hidden_layers 4 \
+	--classifier_hidden_layers_width 512 \
+	--classifier_layer_drop_out 0.1 \
 	--number_classes 8 \
 	--weighted_loss \
+	--optimizer 'adamw' \
+	--update_optimizer_every 5 \
+	--learning_rate 0.00005 \
 	--learning_rate_multiplier 0.9 \
+	--weight_decay 0.01 \
 	--use_weights_and_biases

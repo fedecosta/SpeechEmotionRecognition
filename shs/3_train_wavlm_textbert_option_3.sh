@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
-#SBATCH -e /home/usuaris/veussd/federico.costa/logs/sbatch/errors/slurm-%j.err
+#SBATCH -e logs/sbatch/errors/slurm-%j.err
 #SBATCH -p veu             # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_8_classes_6
+#SBATCH --job-name=train_8_classes_3
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
@@ -28,9 +28,10 @@ python scripts/train.py \
 	--bert_flavor 'BERT_LARGE_UNCASED' \
 	--front_end 'NoneFrontEnd' \
 	--adapter 'NoneAdapter' \
-	--seq_to_seq_method 'MultiHeadAttention' \
-	--seq_to_seq_heads_number 4 \
+	--seq_to_seq_method 'NoneSeqToSeq' \
+	--seq_to_seq_input_dropout 0.0 \
 	--seq_to_one_method 'AttentionPooling' \
+	--seq_to_one_input_dropout 0.0 \
 	--max_epochs 200 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
@@ -39,8 +40,8 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--num_workers 4 \
 	--padding_type 'repetition_pad' \
-	--classifier_hidden_layers 0 \
-	--classifier_hidden_layers_width 1024 \
+	--classifier_hidden_layers 4 \
+	--classifier_hidden_layers_width 512 \
 	--classifier_layer_drop_out 0.1 \
 	--number_classes 8 \
 	--weighted_loss \

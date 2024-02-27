@@ -92,6 +92,14 @@ class WavLMExtractor(nn.Module):
             bundle = torchaudio.pipelines.WAVLM_LARGE
             self.num_layers = 24 # Layers of the Transformer of the WavLM model
             # every layer has features with 1024 dimension
+        elif self.wavlm_flavor == "WAV2VEC2_LARGE_LV60K":
+            bundle = torchaudio.pipelines.WAV2VEC2_LARGE_LV60K
+            self.num_layers = 24 # Layers of the Transformer of the WavLM model
+            # every layer has features with 1024 dimension
+        elif self.wavlm_flavor == "HUBERT_LARGE":
+            bundle = torchaudio.pipelines.HUBERT_LARGE
+            self.num_layers = 24 # Layers of the Transformer of the WavLM model
+            # every layer has features with 1024 dimension
         else:
             raise Exception('No wavlm_flavor choice found.') 
 
@@ -109,8 +117,9 @@ class WavLMExtractor(nn.Module):
         # level_features dims: (#B, #num_vectors, #dim_vectors = )
         
         hidden_states = torch.stack(features, dim=1)
-
         averaged_hidden_states = (hidden_states * self.layer_weights.view(-1, 1, 1)).sum(dim=1)
+
+        # HACK to get only the last layer
         #averaged_hidden_states = features[-1]
 
         return averaged_hidden_states
