@@ -96,6 +96,14 @@ class WavLMExtractor(nn.Module):
             bundle = torchaudio.pipelines.WAV2VEC2_LARGE_LV60K
             self.num_layers = 24 # Layers of the Transformer of the WavLM model
             # every layer has features with 1024 dimension
+        elif self.wavlm_flavor == "WAV2VEC2_XLSR_300M":
+            bundle = torchaudio.pipelines.WAV2VEC2_XLSR_300M
+            self.num_layers = 24 # Layers of the Transformer of the WavLM model
+            # every layer has features with 1024 dimension
+        elif self.wavlm_flavor == "WAV2VEC2_XLSR_1B":
+            bundle = torchaudio.pipelines.WAV2VEC2_XLSR_1B
+            self.num_layers = 48 # Layers of the Transformer of the WavLM model
+            # every layer has features with 1280 dimension
         elif self.wavlm_flavor == "HUBERT_LARGE":
             bundle = torchaudio.pipelines.HUBERT_LARGE
             self.num_layers = 24 # Layers of the Transformer of the WavLM model

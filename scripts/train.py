@@ -1221,7 +1221,7 @@ class ArgsParser:
             self.parser.add_argument(
                 '--wavlm_flavor', 
                 type = str, 
-                choices = ['WAVLM_BASE', 'WAVLM_BASE_PLUS', 'WAVLM_LARGE', 'WAV2VEC2_LARGE_LV60K', 'HUBERT_LARGE'], 
+                choices = ['WAVLM_BASE', 'WAVLM_BASE_PLUS', 'WAVLM_LARGE', 'WAV2VEC2_LARGE_LV60K', 'WAV2VEC2_XLSR_300M', 'WAV2VEC2_XLSR_1B', 'HUBERT_LARGE'], 
                 help = 'wavLM model flavor, considered only if WavLMExtractor is used.' 
                 )
             
@@ -1243,7 +1243,7 @@ class ArgsParser:
             self.parser.add_argument(
                 '--bert_flavor', 
                 type = str, 
-                choices = ['BERT_BASE_UNCASED', 'BERT_BASE_CASED', 'BERT_LARGE_UNCASED', 'BERT_LARGE_CASED'], 
+                choices = ['BERT_BASE_UNCASED', 'BERT_BASE_CASED', 'BERT_LARGE_UNCASED', 'BERT_LARGE_CASED', 'ROBERTA_LARGE'], 
                 help = 'BERT model flavor, considered only if TextBERTExtractor is used.' 
                 )
             

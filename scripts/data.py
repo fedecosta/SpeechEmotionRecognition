@@ -93,6 +93,8 @@ class TrainDataset(data.Dataset):
             self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-large-uncased')
         elif self.parameters.bert_flavor == "BERT_LARGE_CASED":
             self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-large-cased')
+        elif self.parameters.bert_flavor == "ROBERTA_LARGE":
+            self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'roberta-large')
         else:
             raise Exception('No bert_flavor choice found.')
     

@@ -26,7 +26,7 @@ utterance_path = train_labels_lines[line_num].split("\t")[0]
 file_name = utterance_path.split("/")[-1]
 waveform, sample_rate = torchaudio.load(utterance_path)
 
-bundle = torchaudio.pipelines.WAV2VEC2_LARGE_LV60K
+bundle = torchaudio.pipelines.WAV2VEC2_XLSR_1B
 feature_extractor = bundle.get_model()
 features, _ = feature_extractor.extract_features(waveform)
 print(len(features))

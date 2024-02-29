@@ -121,6 +121,9 @@ class TextBERTExtractor(nn.Module):
         elif self.bert_flavor == "BERT_LARGE_CASED":
             self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-large-cased')
             # model outputs features features with 1024 dimension
+        elif self.bert_flavor == "ROBERTA_LARGE":
+            self.model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'roberta-large')
+            # model outputs features features with 1024 dimension
         else:
             raise Exception('No bert_flavor choice found.')
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
 #SBATCH -e /home/usuaris/veussd/federico.costa/logs/sbatch/errors/slurm-%j.err
-#SBATCH -p veu            # Partition to submit to
+#SBATCH -p veu -w veuc09            # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
@@ -22,7 +22,7 @@ python scripts/train.py \
 	--evaluation_augmentation_prob 0 \
 	--augmentation_effects 'apply_speed_perturbation' 'apply_reverb' 'add_background_noise' \
 	--feature_extractor 'WavLMExtractor' \
-	--wavlm_flavor 'WAVLM_LARGE' \
+	--wavlm_flavor 'WAV2VEC2_XLSR_300M' \
 	--feature_extractor_output_vectors_dimension 1024 \
 	--text_feature_extractor 'TextBERTExtractor' \
 	--bert_flavor 'BERT_LARGE_UNCASED' \

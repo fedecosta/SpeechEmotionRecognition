@@ -92,6 +92,7 @@ class Classifier(nn.Module):
                     parameter.requires_grad = False
             
             self.text_feature_extractor_norm_layer = nn.LayerNorm(parameters.feature_extractor_output_vectors_dimension)
+            #self.text_feature_extractor_norm_layer = nn.LayerNorm(1024)
 
         else:
             self.text_feature_extractor = None
