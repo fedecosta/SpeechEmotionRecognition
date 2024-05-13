@@ -57,11 +57,8 @@ class SelfAttention(nn.Module):
 
     def forward(self, input_tensors):
 
-        #print(f"input_tensors.size(): {input_tensors.size()}")
-
         raw_weights = torch.bmm(input_tensors, input_tensors.transpose(1, 2))
 
-        # TODO If we want to analyze the attention weights, we should analyze weights
         weights = F.softmax(raw_weights, dim = 2)
 
         output = torch.bmm(weights, input_tensors)

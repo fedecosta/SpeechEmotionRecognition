@@ -45,9 +45,8 @@ class DataAugmentator:
         self.create_augmentation_list(augmentation_noises_labels_path)
         self.create_rir_list(augmentation_rirs_labels_path) 
 
-        # TODO move to settings
-        #self.EFFECTS = ["apply_speed_perturbation", "apply_reverb", "add_background_noise"]           
-        self.SPEEDS = ["0.9", "1.1"] # If 1 is an option, no augmentation is done!
+        # TODO move to settings         
+        self.SPEEDS = ["0.9", "1.1"]
         self.SNR_NOISE_RANGE = [15, 25]
         self.SNR_SPEECH_RANGE = [15, 25]
         self.SNR_MUSIC_RANGE = [15, 20]
@@ -90,9 +89,9 @@ class DataAugmentator:
             path = os.path.join(self.rirs_directory, random.choice(self.rirs_list).strip())
         else:
             path = random.choice(self.rirs_list).strip()
-        logger.debug(f"path: {path}")
+
         rir_wav, rir_sample_rate = torchaudio.load(path)
-        logger.debug(f"first load ok")
+
         if rir_sample_rate != sample_rate:
             rir_wav = torchaudio.functional.resample(
                 waveform = rir_wav,
@@ -100,16 +99,13 @@ class DataAugmentator:
                 new_freq = sample_rate, 
             )
             rir_sample_rate = sample_rate
-        logger.debug(f"resampling ok")
 
         # TODO first loading the audio and then cropping is unefficient
         # Clean up the RIR,  extract the main impulse, normalize the signal power
         normalized_rir = rir_wav[:, int(rir_sample_rate * 0.01) : int(rir_sample_rate * 1.3)]
         normalized_rir = normalized_rir / torch.norm(normalized_rir, p=2)
         
-        logger.debug(f"fftconvolve on going...")
         augmented_waveform = torch.mean(torchaudio.functional.fftconvolve(audio, normalized_rir), dim=0).unsqueeze(0)
-        logger.debug(f"fftconvolve ok")
 
         return augmented_waveform
             

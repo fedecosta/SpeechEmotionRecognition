@@ -85,6 +85,7 @@ class TrainDataset(data.Dataset):
         # HACK we need to transcribe into this class because the ASR model has a problem implementing batches transcriptions
         
         self.transcriptor = ASRDummy()
+
         if self.parameters.bert_flavor == "BERT_BASE_UNCASED":
             self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-uncased')
         elif self.parameters.bert_flavor == "BERT_BASE_CASED":
@@ -199,8 +200,6 @@ class TrainDataset(data.Dataset):
         # Each utterance_path is like: audio_path\tlabel
         utterance_tuple = self.utterances_paths[index].strip().split('\t')
 
-        #logger.debug(f"utterance_tuple: {utterance_tuple}")
-
         utterance_path = utterance_tuple[0]
         utterance_label = utterance_tuple[1]
 
@@ -209,8 +208,10 @@ class TrainDataset(data.Dataset):
 
         # We transcribe before processing the waveform
         if self.parameters.text_feature_extractor != 'NoneTextExtractor':
-            # HACK using dataset transcriptions as a quick test
-            #transcription = self.get_transcription(waveform)
+            
+            # HACK
+            # A real ASR should use the waveform: transcription = self.get_transcription(waveform)
+            # We are using a dummy ASR that just loads transcriptions from files
             transcription = self.get_transcription(utterance_path)
 
             transcription_tokens = self.get_transcription_tokens(transcription)
