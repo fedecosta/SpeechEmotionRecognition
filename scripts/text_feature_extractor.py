@@ -39,8 +39,8 @@ class ASRDummy(nn.Module):
 
         file_name = utterance_path.split("/")[-1].replace(".wav", ".txt")
         #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Transcripts/Transcripts", file_name)
-        #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/custom_transcriptions/", file_name)
-        transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/whisper_transcriptions/", file_name)
+        transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/custom_transcriptions/", file_name)
+        #transcription_path = os.path.join("/home/usuaris/veussd/federico.costa/datasets/msp_podcast/whisper_transcriptions/", file_name)
         
         with open(transcription_path, 'r') as data_labels_file:
             transcription = data_labels_file.readlines()

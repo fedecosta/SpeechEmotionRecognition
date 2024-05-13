@@ -19,7 +19,7 @@ from data import TrainDataset
 from model import Classifier
 from loss import FocalLossCriterion
 from utils import format_training_labels, generate_model_name, get_memory_info, pad_collate, get_waveforms_stats
-from settings import TRAIN_DEFAULT_SETTINGS, LABELS_TO_IDS, LABELS_REDUCED_TO_IDS
+from settings import TRAIN_DEFAULT_SETTINGS, LABELS_TO_IDS
 
 # ---------------------------------------------------------------------
 
@@ -206,7 +206,7 @@ class Trainer:
 
         return format_training_labels(
             labels_path = self.params.train_labels_path,
-            labels_to_ids = LABELS_REDUCED_TO_IDS,
+            labels_to_ids = LABELS_TO_IDS,
             prepend_directory = self.params.train_data_dir,
             header = True,
         )
@@ -216,7 +216,7 @@ class Trainer:
 
         return format_training_labels(
             labels_path = self.params.validation_labels_path,
-            labels_to_ids = LABELS_REDUCED_TO_IDS,
+            labels_to_ids = LABELS_TO_IDS,
             prepend_directory = self.params.validation_data_dir,
             header = True,
         )

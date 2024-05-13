@@ -1,18 +1,4 @@
 LABELS_TO_IDS = {
-    "n": 0,
-    "x": 1,
-    "h": 2,
-    "a": 3,
-    "c": 4,
-    "s": 5,
-    "u": 6,
-    "d": 7,
-    "o": 8,
-    "f": 9,
-}
-
-# HACK
-LABELS_REDUCED_TO_IDS = {
     "h": 0,
     "a": 1,
     "c": 2,
