@@ -1021,6 +1021,7 @@ class Trainer:
         if self.params.use_weights_and_biases: self.delete_version_artifacts()
 
 
+    # TODO move this to utils
     def info_mem(self, step = None, logger_level = "INFO"):
 
         '''Logs CPU and GPU free memory.'''
