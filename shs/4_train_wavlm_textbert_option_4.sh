@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -o /home/usuaris/veussd/federico.costa/logs/sbatch/outputs/slurm-%j.out
 #SBATCH -e /home/usuaris/veussd/federico.costa/logs/sbatch/errors/slurm-%j.err
-#SBATCH -p veu -w veuc09            # Partition to submit to
+#SBATCH -p veu            # Partition to submit to
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
@@ -33,10 +33,10 @@ python scripts/train.py \
 	--seq_to_seq_input_dropout 0.0 \
 	--seq_to_one_method 'AttentionPooling' \
 	--seq_to_one_input_dropout 0.0 \
-	--max_epochs 200 \
+	--max_epochs 20 \
 	--training_batch_size 32 \
 	--evaluation_batch_size 1 \
-	--eval_and_save_best_model_every 3100 \
+	--eval_and_save_best_model_every 1600 \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--num_workers 4 \
@@ -45,10 +45,11 @@ python scripts/train.py \
 	--classifier_hidden_layers_width 512 \
 	--classifier_layer_drop_out 0.1 \
 	--number_classes 8 \
-	--weighted_loss \
+	--loss 'FocalLoss' \
+	--no-weighted_loss \
 	--optimizer 'adamw' \
 	--update_optimizer_every 5 \
-	--learning_rate 0.00005 \
-	--learning_rate_multiplier 0.9 \
+	--learning_rate 0.0001 \
+	--learning_rate_multiplier 0.5 \
 	--weight_decay 0.01 \
 	--use_weights_and_biases
