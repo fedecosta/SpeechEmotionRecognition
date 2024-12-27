@@ -6,6 +6,7 @@
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:2
 #SBATCH --job-name=train_8_classes_4
+
 python scripts/train.py \
 	--train_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
 	--validation_data_dir '/home/usuaris/veussd/federico.costa/datasets/msp_podcast/Audios/audio_files' \
